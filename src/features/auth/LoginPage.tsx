@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { authService } from './services/authService';
-import { Lock, Mail, Activity, ArrowRight } from 'lucide-react';
+import { Lock, Mail, Activity, ArrowRight, CheckCircle2 } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const successMessage = location.state?.message;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,6 +78,12 @@ export const LoginPage: React.FC = () => {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
+              {successMessage && (
+                <div className="bg-green-500/10 border border-green-500/20 text-green-400 p-3 rounded-lg text-sm flex items-center gap-2 animate-in fade-in shrink-0">
+                  <CheckCircle2 size={16} className="shrink-0" />
+                  {successMessage}
+                </div>
+              )}
               {error && (
                 <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-lg text-sm flex items-center gap-2 animate-in fade-in shrink-0">
                   <div className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />

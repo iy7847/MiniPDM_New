@@ -9,3 +9,4 @@ export * from './Badge';
 export * from './components/CountUp';
 export * from './NumberInput';
 export * from './Tabs';
+export * from './Toggle';

@@ -2,9 +2,21 @@ import React from 'react';
 import { Search, Bell, User } from 'lucide-react';
 import { BaseInput } from '../design-system';
 import { useAppStore } from '../shared/stores/useAppStore';
+import { useAuth } from '../app/providers/AuthProvider';
+import { authService } from '../features/auth/services/authService';
+import { useNavigate } from 'react-router-dom';
 
 export const TopBar: React.FC = () => {
   const { toggleSearch, toggleNotification } = useAppStore();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    if (window.confirm('로그아웃 하시겠습니까?')) {
+      await authService.logout();
+      navigate('/login');
+    }
+  };
 
   return (
     <header className="h-16 bg-bg-surface border-b border-border-default flex items-center justify-between px-6 shrink-0 transition-colors">
@@ -26,11 +38,17 @@ export const TopBar: React.FC = () => {
           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-danger rounded-full border border-surface"></span>
         </button>
         
-        <div className="flex items-center gap-2 cursor-pointer hover:bg-bg-elevated p-1.5 rounded-full transition-colors pr-3">
-          <div className="w-8 h-8 rounded-full bg-bg-elevated flex items-center justify-center border border-border-default">
-            <User size={18} className="text-text-secondary" />
+        <div 
+          onClick={handleLogout}
+          className="flex items-center gap-2 cursor-pointer hover:bg-bg-elevated p-1.5 rounded-full transition-colors pr-3 group relative"
+          title="클릭하여 로그아웃"
+        >
+          <div className="w-8 h-8 rounded-full bg-bg-elevated flex items-center justify-center border border-border-default group-hover:border-danger transition-colors">
+            <User size={18} className="text-text-secondary group-hover:text-danger" />
           </div>
-          <span className="text-sm font-medium text-text-primary">관리자</span>
+          <span className="text-sm font-medium text-text-primary max-w-[150px] truncate">
+            {user?.email || '알 수 없음'}
+          </span>
         </div>
       </div>
     </header>

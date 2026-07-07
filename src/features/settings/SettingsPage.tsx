@@ -10,11 +10,14 @@ import { FinancialTab } from './tabs/FinancialTab';
 import { DiscountPolicyTab } from './tabs/DiscountPolicyTab';
 import { TemplateTab } from './tabs/TemplateTab';
 import { ExcelPresetTab } from './tabs/ExcelPresetTab';
-import { Settings, Building2, CircleDollarSign, FileText, TableProperties, TrendingUp } from 'lucide-react';
+import { Settings, Building2, CircleDollarSign, FileText, TableProperties, TrendingUp, Users, Shield } from 'lucide-react';
+import { UserManagementTab } from './tabs/UserManagementTab';
+import { GroupManagementTab } from './tabs/GroupManagementTab';
 
 export function SettingsPage() {
   const { user } = useAuth();
   const [companyId, setCompanyId] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
   
   const { 
     settings, 
@@ -25,7 +28,8 @@ export function SettingsPage() {
     loadExcelPresets,
     addExcelPreset,
     deleteExcelPreset,
-    updateExcelPresetColumns
+    updateExcelPresetColumns,
+    loadCustomTemplates
   } = useSettingsStore();
 
   const [activeTab, setActiveTab] = useState('basic');
@@ -39,11 +43,12 @@ export function SettingsPage() {
       if (user) {
         const { data } = await supabase
           .from('profiles')
-          .select('company_id')
+          .select('company_id, role')
           .eq('id', user.id)
           .single();
         if (data?.company_id) {
           setCompanyId(data.company_id);
+          setUserRole(data.role);
         }
       }
       setLoading(false);
@@ -55,6 +60,7 @@ export function SettingsPage() {
     if (companyId) {
       loadSettings(companyId);
       loadExcelPresets(companyId);
+      loadCustomTemplates(companyId);
     }
   }, [companyId]);
 
@@ -124,7 +130,11 @@ export function SettingsPage() {
                 { id: 'financial', label: '단가 및 마진', icon: <CircleDollarSign className="w-4 h-4" /> },
                 { id: 'discount', label: '할인율 정책', icon: <TrendingUp className="w-4 h-4" /> },
                 { id: 'quotation', label: '견적 양식', icon: <FileText className="w-4 h-4" /> },
-                { id: 'excel', label: '엑셀 프리셋', icon: <TableProperties className="w-4 h-4" /> }
+                { id: 'excel', label: '엑셀 프리셋', icon: <TableProperties className="w-4 h-4" /> },
+                ...(userRole === 'admin' || userRole === 'super_admin' ? [
+                  { id: 'users', label: '사용자 관리', icon: <Users className="w-4 h-4" /> },
+                  { id: 'groups', label: '그룹 관리', icon: <Shield className="w-4 h-4" /> }
+                ] : [])
               ]}
               activeTab={activeTab}
               onChange={setActiveTab}
@@ -156,6 +166,12 @@ export function SettingsPage() {
                 onDelete={deleteExcelPreset}
                 onUpdateColumns={updateExcelPresetColumns}
               />
+            )}
+            {activeTab === 'users' && companyId && (
+              <UserManagementTab companyId={companyId} />
+            )}
+            {activeTab === 'groups' && companyId && (
+              <GroupManagementTab companyId={companyId} />
             )}
           </div>
         </div>

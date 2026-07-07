@@ -2,6 +2,7 @@ import React from 'react';
 import { createHashRouter, RouterProvider, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './providers/AuthProvider';
 import { LoginPage } from '../features/auth/LoginPage';
+import { SignupPage } from '../features/auth/SignupPage';
 import { AppShell } from '../layout/AppShell';
 import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { EstimatesPage } from '../features/estimates/EstimatesPage';
@@ -16,6 +17,7 @@ import { SettingsPage } from '../features/settings/SettingsPage';
 import { OrdersPage } from '../features/orders/OrdersPage';
 import { ShippingPage } from '../features/shipping/ShippingPage';
 import { AnalyticsPage } from '../features/analytics/AnalyticsPage';
+import { OnboardingPage } from '../features/onboarding/OnboardingPage';
 
 // 빈 페이지들을 위한 임시 컴포넌트
 const PlaceholderPage = ({ title }: { title: string }) => (
@@ -30,8 +32,30 @@ const PlaceholderPage = ({ title }: { title: string }) => (
 const AuthGuard = ({ children, rejectPartner = false }: { children: React.ReactNode, rejectPartner?: boolean }) => {
   const { user, loading } = useAuth();
   const location = useLocation();
+  const [profileLoading, setProfileLoading] = React.useState(true);
+  const [companyId, setCompanyId] = React.useState<string | null>(null);
 
-  if (loading) {
+  React.useEffect(() => {
+    if (user) {
+      const fetchProfile = async () => {
+        const { supabase } = await import('@/shared/services/supabase');
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('company_id')
+          .eq('id', user.id)
+          .single();
+        if (data) {
+          setCompanyId(data.company_id);
+        }
+        setProfileLoading(false);
+      };
+      fetchProfile();
+    } else {
+      setProfileLoading(false);
+    }
+  }, [user]);
+
+  if (loading || profileLoading) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-[#0D1117]">
         <div className="w-8 h-8 border-4 border-brand-500/30 border-t-brand rounded-full animate-spin"></div>
@@ -41,6 +65,15 @@ const AuthGuard = ({ children, rejectPartner = false }: { children: React.ReactN
 
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // Handle onboarding redirect
+  if (!companyId && location.pathname !== '/onboarding') {
+    return <Navigate to="/onboarding" replace />;
+  }
+  
+  if (companyId && location.pathname === '/onboarding') {
+    return <Navigate to="/" replace />;
   }
   
   // 파트너(외주/고객사) 역할인지 확인
@@ -54,6 +87,14 @@ const AuthGuard = ({ children, rejectPartner = false }: { children: React.ReactN
 };
 
 const router = createHashRouter([
+  {
+    path: '/onboarding',
+    element: (
+      <AuthGuard>
+        <OnboardingPage />
+      </AuthGuard>
+    ),
+  },
   {
     path: '/shared/order/:id',
     element: (
@@ -71,6 +112,10 @@ const router = createHashRouter([
         </div>
       </AuthGuard>
     ),
+  },
+  {
+    path: '/signup',
+    element: <SignupPage />,
   },
   {
     path: '/login',

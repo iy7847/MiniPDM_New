@@ -42,6 +42,16 @@ export interface ExcelExportPreset {
   created_at?: string;
 }
 
+export interface CustomTemplate {
+  id: string;
+  company_id: string;
+  name: string;
+  layout_json: any;
+  is_default: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export const settingsService = {
   async fetchCompanySettings(companyId: string): Promise<CompanySettings | null> {
     const { data, error } = await supabase
@@ -117,6 +127,58 @@ export const settingsService = {
 
     if (error) {
       console.error('Error updating excel preset columns:', error);
+      throw error;
+    }
+  },
+
+  async fetchCustomTemplates(companyId: string): Promise<CustomTemplate[]> {
+    const { data, error } = await supabase
+      .from('custom_quotation_templates')
+      .select('*')
+      .eq('company_id', companyId)
+      .order('created_at');
+
+    if (error) {
+      console.error('Error fetching custom templates:', error);
+      throw error;
+    }
+    return data || [];
+  },
+
+  async saveCustomTemplate(companyId: string, template: Omit<CustomTemplate, 'id' | 'company_id' | 'created_at' | 'updated_at'>): Promise<CustomTemplate | null> {
+    const { data, error } = await supabase
+      .from('custom_quotation_templates')
+      .insert({ company_id: companyId, ...template })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error saving custom template:', error);
+      throw error;
+    }
+    return data;
+  },
+
+  async updateCustomTemplate(templateId: string, template: Partial<CustomTemplate>) {
+    const { error } = await supabase
+      .from('custom_quotation_templates')
+      .update({ ...template, updated_at: new Date().toISOString() })
+      .eq('id', templateId);
+
+    if (error) {
+      console.error('Error updating custom template:', error);
+      throw error;
+    }
+  },
+
+  async deleteCustomTemplate(templateId: string) {
+    const { error } = await supabase
+      .from('custom_quotation_templates')
+      .delete()
+      .eq('id', templateId);
+
+    if (error) {
+      console.error('Error deleting custom template:', error);
       throw error;
     }
   }
