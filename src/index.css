@@ -1,0 +1,12 @@
+@import './design-system/tokens.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: theme('colors.bg.base');
+    color: theme('colors.text.primary');
+  }
+}
