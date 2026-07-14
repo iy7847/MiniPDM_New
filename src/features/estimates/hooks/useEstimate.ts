@@ -1,36 +1,158 @@
 import { useState, useEffect, useCallback } from 'react';
 import * as estimateService from '../services/estimateService';
 import type { Estimate, EstimateItem } from '../types';
-import { INITIAL_ITEM_FORM } from '../types';
+import { supabase } from '@/shared/services/supabase';
+
+export interface EstimateMetadata {
+  materials: any[];
+  postProcessings: any[];
+  heatTreatments: any[];
+  companyInfo: any;
+}
+
+export function useEstimateMetadata(companyId: string | null) {
+  const [metadata, setMetadata] = useState<EstimateMetadata>({
+    materials: [],
+    postProcessings: [],
+    heatTreatments: [],
+    companyInfo: null,
+  });
+
+  useEffect(() => {
+    if (!companyId) return;
+
+    const fetchMetadata = async () => {
+      try {
+        const [matsRes, ppsRes, htsRes, compRes] = await Promise.all([
+          supabase.from('materials').select('*').eq('company_id', companyId),
+          supabase.from('post_processings').select('*').eq('company_id', companyId),
+          supabase.from('heat_treatments').select('*').eq('company_id', companyId),
+          supabase.from('companies').select('*').eq('id', companyId).single(),
+        ]);
+
+        setMetadata({
+          materials: matsRes.data || [],
+          postProcessings: ppsRes.data || [],
+          heatTreatments: htsRes.data || [],
+          companyInfo: compRes.data || null,
+        });
+      } catch (err) {
+        console.error('Failed to fetch estimate metadata:', err);
+      }
+    };
+
+    fetchMetadata();
+  }, [companyId]);
+
+  return metadata;
+}
+
+import { useSearchParams, useLocation } from 'react-router-dom';
 
 export function useEstimateList() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
   const [estimates, setEstimates] = useState<Estimate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [totalCount, setTotalCount] = useState(0);
+  const [initialized, setInitialized] = useState(false);
+
+  // Restore or save URL params using sessionStorage
+  useEffect(() => {
+    // 1. Initial load from a clean URL (e.g., clicking the sidebar link)
+    if (searchParams.toString() === '' && !initialized) {
+      const saved = sessionStorage.getItem('estimates_query');
+      if (saved) {
+        setSearchParams(new URLSearchParams(saved), { replace: true });
+        // Return early to wait for the URL to actually change before marking as initialized
+        return;
+      }
+    }
+
+    // 2. Mark as initialized once we have our parameters (either restored or fresh)
+    if (!initialized) {
+      setInitialized(true);
+      return;
+    }
+
+    // 3. Save the current parameters to session storage whenever they change
+    // Only save if we are currently on the estimates page (prevents overwriting during unmount transitions)
+    if (location.pathname === '/estimates') {
+      sessionStorage.setItem('estimates_query', searchParams.toString());
+    }
+  }, [searchParams, initialized, setSearchParams, location.pathname]);
+
+  // Read URL params
+  const page = parseInt(searchParams.get('page') || '1', 10);
+  const search = searchParams.get('search') || '';
+  const status = searchParams.get('status') || 'ALL';
+  const startDate = searchParams.get('start') || '';
+  const endDate = searchParams.get('end') || '';
+  const pageSize = 20;
+
+  // Local state for debounced search
+  const [localSearch, setLocalSearch] = useState(search);
+
+  // Sync localSearch when URL search param changes externally (e.g. from sessionStorage restore or back button)
+  useEffect(() => {
+    setLocalSearch(search);
+  }, [search]);
+
+  // Update URL function
+  const updateParams = (newParams: Record<string, string | undefined>) => {
+    const current = Object.fromEntries(searchParams.entries());
+    Object.entries(newParams).forEach(([key, value]) => {
+      if (value === undefined || value === '') {
+        delete current[key];
+      } else {
+        current[key] = value;
+      }
+    });
+    // If anything other than page changed, reset to page 1
+    if (newParams.search !== undefined || newParams.status !== undefined || newParams.start !== undefined || newParams.end !== undefined) {
+      if (newParams.page === undefined) current.page = '1';
+    }
+    setSearchParams(current);
+  };
+
+  // Debounce effect for text search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (localSearch !== search) {
+        updateParams({ search: localSearch, page: '1' });
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [localSearch, search]);
 
   const loadEstimates = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await estimateService.fetchEstimates();
+      const { data, count } = await estimateService.fetchEstimates({
+        page, pageSize, search, status, startDate, endDate
+      });
       setEstimates(data as any || []);
+      setTotalCount(count);
     } catch (err: any) {
       setError(err.message);
-      // Fallback for UI if DB is empty/failing during development
-      setEstimates([
-        { id: '1', project_name: '알루미늄 브라켓 가공', client_id: 'C1', company_id: 'COM1', currency: 'KRW', base_exchange_rate: 1, total_amount: 1500000, status: 'DRAFT', created_at: '2026-07-01', updated_at: '2026-07-01', clients: { name: 'A테크' } },
-        { id: '2', project_name: 'SUS 하우징 제작', client_id: 'C2', company_id: 'COM1', currency: 'KRW', base_exchange_rate: 1, total_amount: 3200000, status: 'ORDERED', created_at: '2026-07-02', updated_at: '2026-07-02', clients: { name: 'B정공' } },
-        { id: '3', project_name: '특수 지그 세트', client_id: 'C3', company_id: 'COM1', currency: 'KRW', base_exchange_rate: 1, total_amount: 850000, status: 'ARCHIVED', created_at: '2026-07-03', updated_at: '2026-07-03', clients: { name: 'C산업' } },
-      ]);
+      setEstimates([]);
+      setTotalCount(0);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, search, status, startDate, endDate]);
 
   useEffect(() => {
-    loadEstimates();
-  }, [loadEstimates]);
+    if (initialized) {
+      loadEstimates();
+    }
+  }, [loadEstimates, initialized]);
 
-  return { estimates, loading, error, reload: loadEstimates };
+  return { 
+    estimates, totalCount, loading, error, reload: loadEstimates,
+    page, pageSize, search, localSearch, setLocalSearch, status, startDate, endDate, updateParams
+  };
 }
 
 export function useEstimateDetail(id: string | undefined) {
@@ -46,55 +168,43 @@ export function useEstimateDetail(id: string | undefined) {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
+  const loadDetail = useCallback(async () => {
     if (!id || id === 'new') return;
-    
-    const loadDetail = async () => {
-      try {
-        setLoading(true);
-        const data = await estimateService.getEstimateById(id);
-        setEstimate(data as any || {
-            id, project_name: '알루미늄 브라켓 가공', client_id: 'A테크', created_at: '2026-07-01', status: 'DRAFT', total_amount: 1500000
-        });
-        // mock items for now
-        setItems([
-          { ...INITIAL_ITEM_FORM, id: '1', part_no: 'PART-001', part_name: '브라켓 TYPE-1', original_material_name: 'AL6061', qty: 10, unit_price: 33000, supply_price: 330000, shape: 'rect', spec_w: 100, spec_d: 150, spec_h: 20 },
-          { ...INITIAL_ITEM_FORM, id: '2', part_no: 'PART-002', part_name: '브라켓 TYPE-2', original_material_name: 'AL6061', qty: 20, unit_price: 33000, supply_price: 660000 },
-          { ...INITIAL_ITEM_FORM, id: '3', part_no: 'PART-003', part_name: '브라켓 TYPE-3', original_material_name: 'AL6061', qty: 30, unit_price: 33000, supply_price: 990000 },
-        ]);
-      } catch (err: any) {
-        setError(err.message);
-        // Fallback for UI if DB is failing during development
-        setEstimate({
-            id, project_name: '알루미늄 브라켓 가공', client_id: 'A테크', created_at: '2026-07-01', status: 'DRAFT', total_amount: 1500000
-        });
-        setItems([
-          { ...INITIAL_ITEM_FORM, id: '1', part_no: 'PART-001', part_name: '브라켓 TYPE-1', original_material_name: 'AL6061', qty: 10, unit_price: 33000, supply_price: 330000, shape: 'rect', spec_w: 100, spec_d: 150, spec_h: 20 },
-          { ...INITIAL_ITEM_FORM, id: '2', part_no: 'PART-002', part_name: '브라켓 TYPE-2', original_material_name: 'AL6061', qty: 20, unit_price: 33000, supply_price: 660000 },
-          { ...INITIAL_ITEM_FORM, id: '3', part_no: 'PART-003', part_name: '브라켓 TYPE-3', original_material_name: 'AL6061', qty: 30, unit_price: 33000, supply_price: 990000 },
-        ]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadDetail();
+    try {
+      setLoading(true);
+      const { estimate: estData, items: itemsData } = await estimateService.getEstimateWithItems(id);
+      setEstimate(estData || {
+          id, project_name: '', client_id: '', created_at: new Date().toISOString().split('T')[0], status: 'DRAFT', total_amount: 0
+      });
+      setItems(itemsData || []);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   }, [id]);
+
+  useEffect(() => {
+    loadDetail();
+  }, [loadDetail]);
 
   const saveDetail = async (updatedEstimate: Partial<Estimate>, updatedItems: EstimateItem[]) => {
     try {
       setSaving(true);
       if (id === 'new') {
-        // const newData = await estimateService.createEstimate(updatedEstimate);
-        // console.log("Created", newData);
+        const data = await estimateService.saveEstimateWithItems(updatedEstimate, updatedItems);
+        setEstimate({ ...estimate, ...updatedEstimate, id: data?.id });
+        setItems(updatedItems);
+        return data;
       } else {
-        // await estimateService.updateEstimate(id!, updatedEstimate);
-        // console.log("Updated", id);
+        const data = await estimateService.saveEstimateWithItems({ ...updatedEstimate, id }, updatedItems);
+        setEstimate({ ...estimate, ...updatedEstimate });
+        setItems(updatedItems);
+        return data;
       }
-      setEstimate({ ...estimate, ...updatedEstimate });
-      setItems(updatedItems);
     } catch (err: any) {
       setError(err.message);
+      throw err;
     } finally {
       setSaving(false);
     }
@@ -112,5 +222,5 @@ export function useEstimateDetail(id: string | undefined) {
     setItems(prev => prev.filter(item => !itemIds.includes(item.id!)));
   };
 
-  return { estimate, setEstimate, items, setItems, loading, error, saving, saveDetail, updateItem, addItem, removeItems };
+  return { estimate, setEstimate, items, setItems, loading, error, saving, saveDetail, updateItem, addItem, removeItems, reload: loadDetail };
 }

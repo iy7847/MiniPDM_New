@@ -4,10 +4,11 @@ import { AlertCircle } from 'lucide-react';
 export interface BaseInputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
+  inputClassName?: string;
 }
 
 export const BaseInput = forwardRef<HTMLInputElement, BaseInputProps>(
-  ({ label, error, className = '', id, ...props }, ref) => {
+  ({ label, error, className = '', inputClassName = '', id, ...props }, ref) => {
     const generatedId = useId();
     const inputId = id || generatedId;
 
@@ -28,6 +29,7 @@ export const BaseInput = forwardRef<HTMLInputElement, BaseInputProps>(
             disabled:opacity-50 disabled:cursor-not-allowed
             placeholder:text-text-muted
             ${error ? 'border-danger focus:ring-danger-bg focus:border-danger' : 'border-border-default hover:border-border-strong'}
+            ${inputClassName}
           `}
           {...props}
         />

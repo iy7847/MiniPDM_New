@@ -24,6 +24,18 @@
     
     /* Global Styles */
     color-scheme: dark;
+    
+    /* react-datasheet-grid theme overrides */
+    --dsg-border-color: #30363D; /* border.default */
+    --dsg-selection-border-color: #0EA5E9; /* brand.500 */
+    --dsg-selection-background-color: rgba(14, 165, 233, 0.12); /* brand.bg */
+    --dsg-selection-disabled-border-color: #30363D;
+    --dsg-selection-disabled-background-color: rgba(0, 0, 0, 0.2);
+    --dsg-header-text-color: #8B949E; /* text.secondary */
+    --dsg-header-active-text-color: #E6EDF3; /* text.primary */
+    --dsg-cell-background-color: #161B22; /* bg.surface */
+    --dsg-cell-disabled-background-color: #2D333B; /* bg.overlay */
+    --dsg-scroll-shadow-color: rgba(0, 0, 0, 0.5);
   }
   
   body {
@@ -31,4 +43,43 @@
     color: var(--color-text-main);
     font-family: 'Pretendard', 'Inter', sans-serif;
   }
+}
+
+/* Specific react-datasheet-grid class overrides for dark mode */
+.dsg-container {
+  color: theme('colors.text.primary') !important;
+  background: theme('colors.bg.surface') !important;
+}
+
+.dsg-add-row {
+  background: theme('colors.bg.overlay') !important;
+  color: theme('colors.text.primary') !important;
+  border-color: theme('colors.border.default') !important;
+}
+
+.dsg-add-row-btn,
+.dsg-add-row-input {
+  background: theme('colors.bg.surface') !important;
+  color: theme('colors.text.primary') !important;
+  border-color: theme('colors.border.default') !important;
+}
+
+.dsg-add-row-btn:hover,
+.dsg-add-row-input:hover {
+  border-color: theme('colors.brand.500') !important;
+}
+
+.dsg-context-menu {
+  background: theme('colors.bg.elevated') !important;
+  color: theme('colors.text.primary') !important;
+  box-shadow: theme('boxShadow.soft') !important;
+  border: 1px solid theme('colors.border.default') !important;
+}
+
+.dsg-context-menu-item:hover {
+  background: theme('colors.bg.overlay') !important;
+}
+
+.dsg-input {
+  color: theme('colors.text.primary') !important;
 }

@@ -19,21 +19,21 @@ const columnHelper = createColumnHelper<Estimate>();
 
 export const EstimatesPage: React.FC = () => {
   const navigate = useNavigate();
-  const { estimates } = useEstimateList();
+  const { 
+    estimates, totalCount, page, pageSize, localSearch, setLocalSearch, status, startDate, endDate, updateParams 
+  } = useEstimateList();
+  
   const [sorting, setSorting] = useState<SortingState>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState<'ALL' | 'DRAFT' | 'SENT' | 'ORDERED' | 'ARCHIVED'>('ALL');
-
-  const filteredData = React.useMemo(() => estimates.filter((item) => {
-    if (activeTab !== 'ALL' && item.status !== activeTab) return false;
-    if (searchTerm && !item.project_name.includes(searchTerm) && !(item.clients?.name || '').includes(searchTerm)) return false;
-    return true;
-  }), [estimates, activeTab, searchTerm]);
 
   const columns = React.useMemo(() => [
     columnHelper.accessor('id', {
       header: '견적번호',
-      cell: info => <span className="font-medium text-text-primary">EST-{info.getValue()}</span>,
+      cell: info => {
+        const fullId = info.getValue() as string;
+        // UUID일 경우 앞 8자리만 표시, 아닐 경우 그대로 표시
+        const shortId = fullId.length > 8 ? fullId.substring(0, 8).toUpperCase() : fullId;
+        return <span className="font-medium text-text-primary">EST-{shortId}</span>;
+      },
     }),
     columnHelper.accessor('project_name', {
       header: '프로젝트명',
@@ -45,7 +45,13 @@ export const EstimatesPage: React.FC = () => {
     }),
     columnHelper.accessor('created_at', {
       header: '견적일자',
-      cell: info => info.getValue(),
+      cell: info => {
+        const dateStr = info.getValue() as string;
+        if (!dateStr) return '-';
+        return new Intl.DateTimeFormat('ko-KR', { 
+          year: 'numeric', month: '2-digit', day: '2-digit' 
+        }).format(new Date(dateStr));
+      },
     }),
     columnHelper.accessor('total_amount', {
       header: '견적금액',
@@ -55,21 +61,27 @@ export const EstimatesPage: React.FC = () => {
       header: '상태',
       cell: info => {
         const status = info.getValue();
-        if (status === 'DRAFT') return <Badge variant="warning">대기중</Badge>;
-        if (status === 'SENT' || status === 'ORDERED') return <Badge variant="default">진행중</Badge>;
-        return <Badge variant="success">완료</Badge>;
+        if (status === 'DRAFT') return <Badge variant="warning">작성중</Badge>;
+        if (status === 'SENT') return <Badge variant="default">견적제출</Badge>;
+        if (status === 'ORDERED') return <Badge variant="success">수주완료</Badge>;
+        if (status === 'ARCHIVED') return <Badge variant="default">보관됨</Badge>;
+        return <Badge variant="default">{status}</Badge>;
       },
     }),
   ], []);
 
   const table = useReactTable({
-    data: filteredData,
+    data: estimates,
     columns,
     state: { sorting },
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    manualPagination: true,
+    pageCount: Math.ceil(totalCount / pageSize),
   });
+
+  const totalPages = Math.ceil(totalCount / pageSize);
 
   return (
     <div className="flex flex-col h-full bg-bg-base animate-in fade-in">
@@ -93,28 +105,45 @@ export const EstimatesPage: React.FC = () => {
             {(['ALL', 'DRAFT', 'SENT', 'ORDERED', 'ARCHIVED'] as const).map(tab => (
               <button
                 key={tab}
-                onClick={() => setActiveTab(tab)}
+                onClick={() => updateParams({ status: tab })}
                 className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  activeTab === tab 
+                  status === tab 
                     ? 'bg-bg-elevated text-text-primary shadow-sm' 
                     : 'text-text-secondary hover:text-text-primary hover:bg-bg-elevated/50'
                 }`}
               >
                 {tab === 'ALL' && '전체'}
-                {tab === 'DRAFT' && '대기중'}
-                {tab === 'SENT' && '전송됨'}
-                {tab === 'ORDERED' && '수주됨'}
+                {tab === 'DRAFT' && '작성중'}
+                {tab === 'SENT' && '견적제출'}
+                {tab === 'ORDERED' && '수주완료'}
                 {tab === 'ARCHIVED' && '보관됨'}
               </button>
             ))}
           </div>
           
-          <div className="w-72">
-            <BaseInput 
-              placeholder="프로젝트명 또는 거래처 검색"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <BaseInput 
+                type="date"
+                value={startDate}
+                onChange={(e) => updateParams({ start: e.target.value })}
+                className="w-36"
+              />
+              <span className="text-text-secondary">~</span>
+              <BaseInput 
+                type="date"
+                value={endDate}
+                onChange={(e) => updateParams({ end: e.target.value })}
+                className="w-36"
+              />
+            </div>
+            <div className="w-64">
+              <BaseInput 
+                placeholder="프로젝트명, 거래처, 견적번호 검색"
+                value={localSearch}
+                onChange={(e) => setLocalSearch(e.target.value)}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -171,6 +200,34 @@ export const EstimatesPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+          
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-6 py-3 border-t border-border-default bg-bg-surface">
+              <div className="text-sm text-text-secondary">
+                총 {totalCount}건
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => updateParams({ page: String(page - 1) })}
+                  disabled={page <= 1}
+                >
+                  이전
+                </Button>
+                <div className="text-sm font-medium text-text-primary px-4">
+                  {page} / {totalPages}
+                </div>
+                <Button 
+                  variant="outline" 
+                  onClick={() => updateParams({ page: String(page + 1) })}
+                  disabled={page >= totalPages}
+                >
+                  다음
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

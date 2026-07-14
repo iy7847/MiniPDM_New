@@ -9,4 +9,29 @@
     background-color: theme('colors.bg.base');
     color: theme('colors.text.primary');
   }
+
+  /* react-datasheet-grid theme overrides */
+  :root {
+    --dsg-border-color: #30363D;
+    --dsg-cell-border-color: #30363D;
+    --dsg-cell-background-color: #161B22;
+    --dsg-cell-disabled-background-color: #0D1117;
+    --dsg-cell-disabled-text-color: #8B949E;
+    --dsg-header-background-color: #21262D;
+    --dsg-header-text-color: #E6EDF3;
+    --dsg-selection-border-color: #0EA5E9;
+    --dsg-selection-background-color: rgba(14, 165, 233, 0.15);
+    --dsg-active-cell-border-color: #0EA5E9;
+    --dsg-active-cell-focus-border-color: #0EA5E9;
+  }
+
+  /* Additional grid styling */
+  .dsg-container {
+    font-size: 14px;
+    color: #E6EDF3;
+  }
+  .dsg-cell-header-container {
+    font-weight: 600;
+  }
 }
+

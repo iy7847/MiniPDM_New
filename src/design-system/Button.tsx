@@ -1,8 +1,8 @@
 import { type ButtonHTMLAttributes, type ReactNode, forwardRef } from 'react';
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
-  size?: 'sm' | 'md' | 'lg';
+  variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'outline';
+  size?: 'sm' | 'md' | 'lg' | 'icon';
   icon?: ReactNode;
   iconPosition?: 'left' | 'right';
   fullWidth?: boolean;
@@ -28,12 +28,14 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       secondary: "bg-bg-elevated text-text-primary hover:bg-bg-overlay border border-border-default hover:border-border-strong",
       danger: "bg-danger text-white hover:bg-danger/90 border border-danger",
       ghost: "bg-transparent text-text-secondary hover:bg-bg-overlay hover:text-text-primary border border-transparent shadow-none hover:shadow-none hover:-translate-y-0",
+      outline: "bg-transparent text-brand-500 border border-brand-500 hover:bg-brand-500/10",
     };
     
     const sizes = {
       sm: "text-xs py-1.5 px-3 gap-1.5",
       md: "text-sm py-2 px-4 gap-2",
       lg: "text-base py-2.5 px-5 gap-2",
+      icon: "p-2 min-w-[32px] min-h-[32px] flex items-center justify-center",
     };
     
     return (

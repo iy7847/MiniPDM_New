@@ -8,42 +8,56 @@ export interface NumberInputProps extends Omit<BaseInputProps, 'onChange'> {
   allowDecimal?: boolean;
 }
 
-export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
-  ({ value, onChange, allowDecimal = true, ...props }, ref) => {
-    const [displayValue, setDisplayValue] = useState<string>(value !== undefined ? String(value) : '');
-
-    useEffect(() => {
-      if (value !== undefined) {
-        // Only update if it's materially different to prevent jumping cursors
-        if (parseFloat(displayValue) !== value) {
-          setDisplayValue(String(value));
-        }
-      }
-    }, [value]);
-
-    const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
-      let rawValue = e.target.value;
+  export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
+    ({ value, onChange, allowDecimal = true, ...props }, ref) => {
       
-      // Allow only numbers, optional negative sign at start, and optional one decimal point
-      if (allowDecimal) {
-        rawValue = rawValue.replace(/[^0-9.-]/g, '');
-        const parts = rawValue.split('.');
-        if (parts.length > 2) {
-          rawValue = parts[0] + '.' + parts.slice(1).join('');
-        }
-      } else {
-        rawValue = rawValue.replace(/[^0-9-]/g, '');
-      }
+      const formatNumber = (val: string) => {
+        if (!val || val === '-' || val === '.') return val;
+        const parts = val.split('.');
+        const integerPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        return parts.length > 1 ? `${integerPart}.${parts[1]}` : integerPart;
+      };
 
-      setDisplayValue(rawValue);
-
-      if (onChange) {
-        const numValue = parseFloat(rawValue);
-        if (!isNaN(numValue)) {
-          onChange(numValue);
+      const [displayValue, setDisplayValue] = useState<string>(
+        value !== undefined ? formatNumber(String(value)) : ''
+      );
+  
+      useEffect(() => {
+        if (value !== undefined) {
+          const currentRaw = displayValue.replace(/,/g, '');
+          if (parseFloat(currentRaw) !== value && currentRaw !== String(value)) {
+            setDisplayValue(formatNumber(String(value)));
+          }
         }
-      }
-    };
+      }, [value]);
+
+      const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
+        let rawValue = e.target.value.replace(/,/g, ''); // strip existing commas
+        
+        // Allow only numbers, optional negative sign at start, and optional one decimal point
+        if (allowDecimal) {
+          rawValue = rawValue.replace(/[^0-9.-]/g, '');
+          const parts = rawValue.split('.');
+          if (parts.length > 2) {
+            rawValue = parts[0] + '.' + parts.slice(1).join('');
+          }
+        } else {
+          rawValue = rawValue.replace(/[^0-9-]/g, '');
+        }
+  
+        setDisplayValue(formatNumber(rawValue));
+  
+        if (onChange) {
+          if (rawValue === '' || rawValue === '-' || rawValue === '.') {
+            // Don't trigger onChange with NaN for partial inputs, but allow typing
+          } else {
+            const numValue = parseFloat(rawValue);
+            if (!isNaN(numValue)) {
+              onChange(numValue);
+            }
+          }
+        }
+      };
 
     const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
       if (props.onBlur) props.onBlur(e);

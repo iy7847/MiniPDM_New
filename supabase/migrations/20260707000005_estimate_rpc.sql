@@ -136,3 +136,5 @@ BEGIN
   RETURN v_estimate_id;
 END;
 $$;
+
+GRANT EXECUTE ON FUNCTION public.upsert_estimate_with_items TO authenticated;

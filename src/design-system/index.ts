@@ -10,3 +10,8 @@ export * from './components/CountUp';
 export * from './NumberInput';
 export * from './Tabs';
 export * from './Toggle';
+export * from './FormRepeater';
+export * from './BaseSelect';
+export * from './BaseCombobox';
+export * from './Drawer';
+export * from './FloatingToolbar';

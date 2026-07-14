@@ -50,6 +50,8 @@ export type EstimateItem = {
   processing_cost?: number;
   outsource_cost?: number; // [NEW]
 
+  calculated_price?: number; // [NEW] - Calculated unit price (theoretical cost)
+
   qty: number;
   unit_price: number;
   supply_price: number;
