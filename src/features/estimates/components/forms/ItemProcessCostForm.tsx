@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { NumberInput } from '../../../../design-system/NumberInput';
 import type { EstimateItem } from '../../types';
 
@@ -25,9 +26,20 @@ export const ItemProcessCostForm: React.FC<ItemProcessCostFormProps> = ({
   heatTreatments,
   postProcessings
 }) => {
+  const [isOpen, setIsOpen] = useState(true);
+
   return (
     <div className="space-y-4 pt-4 border-t border-border-default">
-      <h3 className="text-lg font-bold text-text-primary border-b border-border-default pb-2">2. 공정 비용 계산</h3>
+      <div 
+        className="flex justify-between items-center cursor-pointer border-b border-border-default pb-2 select-none hover:bg-bg-elevated -mx-2 px-2 rounded-md transition-colors"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <h3 className="text-lg font-bold text-text-primary">2. 공정 비용 계산</h3>
+        {isOpen ? <ChevronDown size={20} className="text-text-secondary" /> : <ChevronRight size={20} className="text-text-secondary" />}
+      </div>
+      
+      {isOpen && (
+        <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
       
       <div className="grid grid-cols-2 gap-4">
         <div>
@@ -114,7 +126,9 @@ export const ItemProcessCostForm: React.FC<ItemProcessCostFormProps> = ({
             </select>
           </div>
         </div>
-      </div>
+        </div>
+        </div>
+      )}
     </div>
   );
 };

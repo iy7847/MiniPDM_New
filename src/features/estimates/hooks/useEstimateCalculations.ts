@@ -83,11 +83,16 @@ export type EstimateCalculationsResult = {
 /**
  * 수량별 할인율 선형 보간 계산 함수
  */
-const calculateDiscountRate = (policy: DiscountPolicy | undefined, difficulty: string, qty: number): number => {
-  if (!policy || !policy.quantities || policy.quantities.length === 0) return 100;
+const calculateDiscountRate = (policy: any, difficulty: string, qty: number): number => {
+  if (!policy) return 100;
 
-  const quantities = policy.quantities;
-  const rates = policy.rates[difficulty] || policy.rates['default'];
+  const isDynamic = 'quantities' in policy;
+  const quantities: number[] = isDynamic && policy.quantities ? policy.quantities : [1, 10, 50, 100, 500, 1000];
+  const ratesObj = isDynamic ? policy.rates : policy;
+
+  if (!ratesObj) return 100;
+
+  const rates = ratesObj[difficulty] || ratesObj['default'] || ratesObj['A'];
 
   if (!rates || rates.length === 0) return 100;
 

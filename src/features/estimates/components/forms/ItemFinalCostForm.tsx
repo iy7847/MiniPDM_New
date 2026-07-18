@@ -1,6 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { ChevronDown, ChevronRight, X, FileText, Box } from 'lucide-react';
 import { BaseInput } from '../../../../design-system/BaseInput';
 import { NumberInput } from '../../../../design-system/NumberInput';
+import { Badge } from '../../../../design-system/Badge';
+import { EXT_2D, EXT_3D } from '../../utils/fileMatching';
 import type { EstimateItem } from '../../types';
 
 interface ItemFinalCostFormProps {
@@ -20,19 +23,47 @@ export const ItemFinalCostForm: React.FC<ItemFinalCostFormProps> = ({
   setIsManualPrice,
   calcResult
 }) => {
+  const [isOpen, setIsOpen] = useState(true);
+
+  const allFiles = [...(itemForm.files || []), ...(itemForm.tempFiles || [])];
+  let count3D = 0;
+  let count2D = 0;
+  
+  allFiles.forEach(f => {
+    const fileName = f.name || (f as any).file_name || '';
+    const extName = '.' + (fileName.split('.').pop()?.toLowerCase() || '');
+    if (EXT_3D.includes(extName)) {
+      count3D++;
+    } else if (EXT_2D.includes(extName)) {
+      count2D++;
+    } else {
+      // If it doesn't match predefined 3D/2D, we can just treat it as 2D Document or ignore.
+      // Let's count it as 2D for simplicity if they just uploaded arbitrary documents
+      count2D++; 
+    }
+  });
+
   return (
     <div className="space-y-4 pt-4 border-t border-border-default">
-      <h3 className="text-lg font-bold text-text-primary border-b border-border-default pb-2">3. 수량 및 최종 단가</h3>
+      <div 
+        className="flex justify-between items-center cursor-pointer border-b border-border-default pb-2 select-none hover:bg-bg-elevated -mx-2 px-2 rounded-md transition-colors"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <h3 className="text-lg font-bold text-text-primary">3. 수량 및 최종 단가</h3>
+        {isOpen ? <ChevronDown size={20} className="text-text-secondary" /> : <ChevronRight size={20} className="text-text-secondary" />}
+      </div>
+      
+      {isOpen && (
+        <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
       
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm text-text-secondary mb-1">수량 다중입력</label>
-          <BaseInput 
-            value={qtyInput} 
-            onChange={e => setQtyInput(e.target.value)} 
-            placeholder="예: 10/50/100" 
+          <NumberInput 
+            label="수량"
+            value={Number(qtyInput) || 1} 
+            onChange={v => setQtyInput(String(v || 1))} 
+            allowDecimal={false}
           />
-          <p className="text-xs text-text-secondary mt-1">슬래시(/) 구분 시 여러 행으로 자동 쪼개집니다.</p>
         </div>
         <div className="flex gap-4">
           <div className="flex-1">
@@ -46,16 +77,42 @@ export const ItemFinalCostForm: React.FC<ItemFinalCostFormProps> = ({
       
       <div>
         <label className="block text-sm font-bold text-text-primary mb-2">파일 업로드</label>
-        <input 
-          type="file" 
-          multiple 
-          onChange={(e) => {
-            if (e.target.files) {
-              setItemForm(prev => ({ ...prev, tempFiles: [...(prev.tempFiles || []), ...Array.from(e.target.files!)] }));
-            }
-          }} 
-          className="block w-full text-sm text-text-secondary file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-bold file:bg-brand-500/10 file:text-brand-500 hover:file:bg-brand-500/20"
-        />
+        
+        <div className="flex items-center gap-3">
+          <label className="cursor-pointer inline-flex items-center justify-center bg-brand-500/10 hover:bg-brand-500/20 text-brand-500 border border-brand-500/20 px-3 py-1.5 rounded-md text-xs font-bold transition-colors shrink-0">
+            <span>파일 선택</span>
+            <input 
+              type="file" 
+              multiple 
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files) {
+                  setItemForm(prev => ({ ...prev, tempFiles: [...(prev.tempFiles || []), ...Array.from(e.target.files!)] }));
+                }
+                e.target.value = '';
+              }} 
+            />
+          </label>
+          
+          <div className="flex items-center gap-2 text-sm">
+            {allFiles.length > 0 ? (
+              <>
+                {count2D > 0 && (
+                  <Badge variant="info" className="py-1 px-2 font-bold text-xs flex items-center">
+                    <FileText size={14} className="mr-1" /> 2D <span className="ml-1 opacity-70">({count2D})</span>
+                  </Badge>
+                )}
+                {count3D > 0 && (
+                  <Badge variant="warning" className="py-1 px-2 font-bold text-xs flex items-center">
+                    <Box size={14} className="mr-1" /> 3D <span className="ml-1 opacity-70">({count3D})</span>
+                  </Badge>
+                )}
+              </>
+            ) : (
+              <span className="text-text-secondary text-xs">선택된 파일 없음</span>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="mt-6 bg-bg-elevated p-6 rounded-xl border border-brand-500/30">
@@ -74,6 +131,8 @@ export const ItemFinalCostForm: React.FC<ItemFinalCostFormProps> = ({
           </p>
         )}
       </div>
+        </div>
+      )}
     </div>
   );
 };

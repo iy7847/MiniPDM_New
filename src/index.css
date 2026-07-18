@@ -35,3 +35,15 @@
   }
 }
 
+@media print {
+  @page {
+    margin: 0;
+    size: A4 portrait;
+  }
+  
+  body {
+    background-color: white !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

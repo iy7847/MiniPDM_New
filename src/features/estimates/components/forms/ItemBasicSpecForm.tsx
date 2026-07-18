@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { BaseInput } from '../../../../design-system/BaseInput';
 import { NumberInput } from '../../../../design-system/NumberInput';
 import { Button } from '../../../../design-system/Button';
@@ -27,9 +28,20 @@ export const ItemBasicSpecForm: React.FC<ItemBasicSpecFormProps> = ({
   recommendedMaterials,
   handleSpecChange
 }) => {
+  const [isOpen, setIsOpen] = useState(true);
+
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-bold text-text-primary border-b border-border-default pb-2">1. 기본 규격 및 형상</h3>
+      <div 
+        className="flex justify-between items-center cursor-pointer border-b border-border-default pb-2 select-none hover:bg-bg-elevated -mx-2 px-2 rounded-md transition-colors"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <h3 className="text-lg font-bold text-text-primary">1. 기본 규격 및 형상</h3>
+        {isOpen ? <ChevronDown size={20} className="text-text-secondary" /> : <ChevronRight size={20} className="text-text-secondary" />}
+      </div>
+      
+      {isOpen && (
+        <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
       
       <div className="flex bg-bg-elevated p-1 rounded-lg border border-border-default mb-4">
         <button
@@ -129,6 +141,8 @@ export const ItemBasicSpecForm: React.FC<ItemBasicSpecFormProps> = ({
           </>
         )}
       </div>
+        </div>
+      )}
     </div>
   );
 };

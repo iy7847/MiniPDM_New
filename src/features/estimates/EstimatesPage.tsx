@@ -14,16 +14,32 @@ import { BaseInput } from '../../design-system/BaseInput';
 import { Badge } from '../../design-system/Badge';
 import { useEstimateList } from './hooks/useEstimate';
 import type { Estimate } from './types';
+import { Trash2 } from 'lucide-react';
+import { deleteEstimate } from './services/estimateService';
+import { DeleteConfirmModal } from '../../shared/components/DeleteConfirmModal';
+import { toast } from '../../shared/stores/useToastStore';
+import { Tabs } from '../../design-system/Tabs';
+import { EstimateItemSearch } from './components/EstimateItemSearch';
+import { DraftEstimateSelectModal } from './components/DraftEstimateSelectModal';
+import { copyItemsToEstimate } from './services/estimateService';
+import { List, Search, ShoppingCart, X } from 'lucide-react';
 
 const columnHelper = createColumnHelper<Estimate>();
 
 export const EstimatesPage: React.FC = () => {
   const navigate = useNavigate();
   const { 
-    estimates, totalCount, page, pageSize, localSearch, setLocalSearch, status, startDate, endDate, updateParams 
+    estimates, totalCount, page, pageSize, localSearch, setLocalSearch, status, startDate, endDate, updateParams, reload
   } = useEstimateList();
   
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  
+  const [activeTab, setActiveTab] = useState('list');
+  const [cart, setCart] = useState<any[]>([]);
+  const [isDraftModalOpen, setIsDraftModalOpen] = useState(false);
+  const [isCopying, setIsCopying] = useState(false);
 
   const columns = React.useMemo(() => [
     columnHelper.accessor('id', {
@@ -37,7 +53,19 @@ export const EstimatesPage: React.FC = () => {
     }),
     columnHelper.accessor('project_name', {
       header: '프로젝트명',
-      cell: info => info.getValue(),
+      cell: info => {
+        const est = info.row.original;
+        return (
+          <div className="flex items-center gap-2">
+            <span className="truncate">{info.getValue()}</span>
+            {est.item_count !== undefined && est.item_count > 0 && (
+              <span className="shrink-0 bg-bg-overlay px-2 py-0.5 rounded-full text-[11px] font-medium text-text-secondary border border-border-default">
+                {est.item_count}종
+              </span>
+            )}
+          </div>
+        );
+      },
     }),
     columnHelper.accessor('clients.name', {
       header: '거래처',
@@ -64,11 +92,52 @@ export const EstimatesPage: React.FC = () => {
         if (status === 'DRAFT') return <Badge variant="warning">작성중</Badge>;
         if (status === 'SENT') return <Badge variant="default">견적제출</Badge>;
         if (status === 'ORDERED') return <Badge variant="success">수주완료</Badge>;
-        if (status === 'ARCHIVED') return <Badge variant="default">보관됨</Badge>;
         return <Badge variant="default">{status}</Badge>;
       },
     }),
+    columnHelper.display({
+      id: 'actions',
+      header: '관리',
+      size: 80,
+      enableSorting: false,
+      cell: info => {
+        const est = info.row.original;
+        const isLocked = est.status === 'SENT' || est.status === 'ORDERED';
+        return (
+          <div className="flex items-center space-x-2" onClick={(e) => e.stopPropagation()}>
+            {!isLocked && (
+              <button
+                className={`p-1.5 rounded transition-colors text-red-400 hover:bg-red-500/10`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDeleteTargetId(est.id);
+                }}
+                title="삭제"
+              >
+                <Trash2 size={16} />
+              </button>
+            )}
+          </div>
+        );
+      }
+    })
   ], []);
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTargetId) return;
+    try {
+      setIsDeleting(true);
+      await deleteEstimate(deleteTargetId);
+      toast.success('견적서가 정상적으로 삭제되었습니다.');
+      reload();
+    } catch (e) {
+      console.error(e);
+      toast.error('견적서 삭제 중 오류가 발생했습니다.');
+    } finally {
+      setIsDeleting(false);
+      setDeleteTargetId(null);
+    }
+  };
 
   const table = useReactTable({
     data: estimates,
@@ -88,7 +157,17 @@ export const EstimatesPage: React.FC = () => {
       {/* Header */}
       <div className="p-6 pb-0">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-text-primary">견적 관리</h1>
+          <div className="flex items-center gap-6">
+            <h1 className="text-2xl font-bold text-text-primary">견적 관리</h1>
+            <Tabs 
+              tabs={[
+                { id: 'list', label: '견적서 목록', icon: <List size={16} /> },
+                { id: 'search', label: '품목 검색', icon: <Search size={16} /> }
+              ]} 
+              activeTab={activeTab} 
+              onChange={setActiveTab} 
+            />
+          </div>
           <Button 
             variant="primary" 
             onClick={() => navigate('/estimates/new')}
@@ -99,10 +178,11 @@ export const EstimatesPage: React.FC = () => {
           </Button>
         </div>
 
-        {/* Filters and Search */}
-        <div className="flex justify-between items-center mb-4">
+        {/* Filters and Search - Only show for list tab */}
+        {activeTab === 'list' && (
+          <div className="flex justify-between items-center mb-4">
           <div className="flex space-x-1 bg-bg-surface p-1 rounded-lg border border-border-default">
-            {(['ALL', 'DRAFT', 'SENT', 'ORDERED', 'ARCHIVED'] as const).map(tab => (
+            {(['ALL', 'DRAFT', 'SENT', 'ORDERED'] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => updateParams({ status: tab })}
@@ -116,7 +196,6 @@ export const EstimatesPage: React.FC = () => {
                 {tab === 'DRAFT' && '작성중'}
                 {tab === 'SENT' && '견적제출'}
                 {tab === 'ORDERED' && '수주완료'}
-                {tab === 'ARCHIVED' && '보관됨'}
               </button>
             ))}
           </div>
@@ -144,13 +223,15 @@ export const EstimatesPage: React.FC = () => {
                 onChange={(e) => setLocalSearch(e.target.value)}
               />
             </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Table */}
-      <div className="flex-1 p-6 pt-0 overflow-hidden flex flex-col">
-        <div className="bg-bg-surface border border-border-default rounded-lg overflow-hidden flex flex-col h-full">
+      {/* Main Content Area */}
+      {activeTab === 'list' ? (
+        <div className="flex-1 p-6 pt-0 overflow-hidden flex flex-col">
+          <div className="bg-bg-surface border border-border-default rounded-lg overflow-hidden flex flex-col h-full">
           <div className="overflow-auto flex-1 custom-scrollbar">
             <table className="w-full text-left border-collapse">
               <thead className="bg-bg-elevated sticky top-0 z-10">
@@ -159,8 +240,12 @@ export const EstimatesPage: React.FC = () => {
                     {headerGroup.headers.map(header => (
                       <th 
                         key={header.id} 
-                        className="px-4 py-3 text-sm font-medium text-text-secondary border-b border-border-default cursor-pointer hover:bg-bg-overlay transition-colors select-none"
-                        onClick={header.column.getToggleSortingHandler()}
+                        className="px-4 py-3 text-sm font-medium text-text-secondary border-b border-border-default hover:bg-bg-overlay transition-colors select-none"
+                        onClick={header.column.getCanSort() ? header.column.getToggleSortingHandler() : undefined}
+                        style={{ 
+                          width: header.column.getSize() !== 150 ? header.column.getSize() : undefined,
+                          cursor: header.column.getCanSort() ? 'pointer' : 'default'
+                        }}
                       >
                         <div className="flex items-center space-x-1">
                           <span>{flexRender(header.column.columnDef.header, header.getContext())}</span>
@@ -184,7 +269,11 @@ export const EstimatesPage: React.FC = () => {
                     className="border-b border-border-default hover:bg-bg-elevated transition-colors cursor-pointer group"
                   >
                     {row.getVisibleCells().map(cell => (
-                      <td key={cell.id} className="px-4 py-3 text-sm text-text-secondary group-hover:text-text-primary">
+                      <td 
+                        key={cell.id} 
+                        className="px-4 py-3 text-sm text-text-secondary group-hover:text-text-primary"
+                        style={{ width: cell.column.getSize() !== 150 ? cell.column.getSize() : undefined }}
+                      >
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </td>
                     ))}
@@ -230,6 +319,19 @@ export const EstimatesPage: React.FC = () => {
           )}
         </div>
       </div>
+      ) : (
+        <EstimateItemSearch cart={cart} setCart={setCart} />
+      )}
+
+
+
+      <DeleteConfirmModal
+        isOpen={!!deleteTargetId}
+        title="견적서 삭제"
+        description={<>정말로 이 견적서를 삭제하시겠습니까?<br/>삭제된 견적서는 복구할 수 없습니다.</>}
+        onClose={() => setDeleteTargetId(null)}
+        onConfirm={handleDeleteConfirm}
+      />
     </div>
   );
 };

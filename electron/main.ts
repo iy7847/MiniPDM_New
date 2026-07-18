@@ -1,7 +1,9 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import os from 'os';
+import { exec } from 'child_process';
 
 let __filename = '';
 let __dirname = '';
@@ -23,9 +25,10 @@ function createWindow() {
   win = new BrowserWindow({
     icon: path.join(process.env.VITE_PUBLIC, 'favicon.svg'),
     webPreferences: {
-      preload: path.join(__dirname, 'preload.mjs'),
-      nodeIntegration: true,
-      contextIsolation: true
+      preload: path.join(__dirname, 'preload.cjs'),
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true
     },
     width: 1200,
     height: 800,
@@ -61,4 +64,25 @@ app.whenReady().then(() => {
 });
 process.on('uncaughtException', (err) => {
   fs.appendFileSync('electron_debug.log', 'Uncaught: ' + err + '\n');
+});
+
+ipcMain.handle('read-local-file', async (event, filePath: string) => {
+  try {
+    const data = await fs.promises.readFile(filePath);
+    return { success: true, data: data.buffer };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('open-local-file', async (event, filePath: string) => {
+  try {
+    const errorMessage = await shell.openPath(filePath);
+    if (errorMessage) {
+      return { success: false, error: errorMessage };
+    }
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
 });

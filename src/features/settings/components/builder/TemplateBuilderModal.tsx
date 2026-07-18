@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Save, FileText, Image, LayoutList, Type, AlignLeft, TextQuote, Minus, Eye, EyeOff, Move } from 'lucide-react';
+import { X, Save, FileText, Image, LayoutList, Type, AlignLeft, TextQuote, Minus, Eye, EyeOff, Move, ChevronDown, ChevronRight, Hash } from 'lucide-react';
 import { Rnd } from 'react-rnd';
 import { BaseInput } from '@/design-system/BaseInput';
 import type { TemplateBlock, BlockType } from '../../types/templateBuilder';
@@ -33,20 +33,15 @@ const BlockPreview = ({ block, form }: { block: TemplateBlock, form: any }) => {
   switch (block.type) {
     case 'header':
       return (
-        <div className="flex flex-col items-center justify-center w-full h-full relative">
-          <div className="font-bold" style={{ fontSize: `${block.fontSize}px`, fontWeight: block.fontWeight === 'normal' ? 400 : block.fontWeight === 'bold' ? 700 : 900 }}>{block.title}</div>
-          {block.showLogo && form?.logo_path ? (
-            <img src={getLocalImagePath(form.logo_path)} alt="로고" className="absolute left-4 top-1/2 -translate-y-1/2 h-3/4 object-contain" />
-          ) : block.showLogo ? (
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 px-2 py-1 bg-gray-100 border border-gray-300 rounded text-[10px] text-gray-500">로고</div>
-          ) : null}
+        <div className="flex flex-col justify-center w-full h-full relative">
+          <div className="font-bold w-full" style={{ textAlign: block.align as any, fontSize: `${block.fontSize || 24}px`, fontWeight: block.fontWeight === 'normal' ? 400 : block.fontWeight === 'bold' ? 700 : 900 }}>{block.title}</div>
         </div>
       );
     case 'receiver_info':
       return (
-        <div className="w-full h-full p-3 bg-gray-50 border border-gray-200 rounded flex flex-col justify-center relative overflow-hidden">
-          <h4 className="font-bold text-xs mb-2">수신자(고객사) 정보</h4>
-          <div className="text-[10px] text-gray-600 space-y-1">
+        <div className="w-full h-full p-3 bg-transparent flex flex-col justify-center relative overflow-hidden" style={{ fontSize: (block as any).fontSize, textAlign: (block as any).align || 'left' }}>
+          <h4 className="font-bold mb-2" style={{ fontSize: (block as any).fontSize ? (block as any).fontSize * 1.2 : 12 }}>수신자(고객사) 정보</h4>
+          <div className="text-gray-600 space-y-1" style={{ fontSize: (block as any).fontSize || 10 }}>
             <p>상호: (수신자 상호명)</p>
             {(block as any).fields?.includes('manager_name') && <p>담당자: (수신자 담당자명)</p>}
             {(block as any).fields?.includes('phone') && <p>연락처: (수신자 연락처)</p>}
@@ -57,8 +52,8 @@ const BlockPreview = ({ block, form }: { block: TemplateBlock, form: any }) => {
       );
     case 'item_table':
       return (
-        <div className={`w-full h-full bg-white flex flex-col overflow-hidden ${block.theme === 'bordered' ? 'border border-gray-300' : ''}`}>
-          <table className={`w-full text-[10px] text-center ${block.theme !== 'simple' ? 'border-collapse' : ''}`}>
+        <div className={`w-full h-full bg-white flex flex-col overflow-hidden ${block.theme === 'bordered' ? 'border border-gray-300' : ''}`} style={{ fontSize: (block as any).fontSize || 10 }}>
+          <table className={`w-full text-center ${block.theme !== 'simple' ? 'border-collapse' : ''}`}>
             <thead>
               <tr className={block.theme === 'striped' ? 'bg-gray-100' : 'bg-gray-50'}>
                 {block.columns.map((col: string) => (
@@ -108,9 +103,9 @@ const BlockPreview = ({ block, form }: { block: TemplateBlock, form: any }) => {
         note: form?.default_note || '(기본 비고 사항)'
       };
       return (
-        <div className="text-sm w-full h-full text-left p-3 bg-gray-50 border border-gray-200 rounded overflow-hidden flex flex-col justify-center">
-          {block.showTitle && <h4 className="font-bold text-xs mb-1">{titleMap[block.conditionType]}</h4>}
-          <p className="text-gray-600 text-[11px] whitespace-pre-wrap">{textMap[block.conditionType]}</p>
+        <div className="w-full h-full p-3 bg-transparent rounded flex flex-col justify-center relative overflow-hidden" style={{ fontSize: (block as any).fontSize, textAlign: (block as any).align || 'left' }}>
+          {block.showTitle && <h4 className="font-bold mb-1" style={{ fontSize: (block as any).fontSize ? (block as any).fontSize * 1.2 : 12 }}>{titleMap[block.conditionType]}</h4>}
+          <p className="text-gray-600 whitespace-pre-wrap" style={{ fontSize: (block as any).fontSize || 11 }}>{textMap[block.conditionType]}</p>
         </div>
       );
     case 'label':
@@ -124,7 +119,18 @@ const BlockPreview = ({ block, form }: { block: TemplateBlock, form: any }) => {
     case 'image':
       const imgPath = (block as any).imageType === 'seal' ? form?.seal_path : form?.logo_path;
       if (imgPath) {
-        return <img src={getLocalImagePath(imgPath)} alt={(block as any).imageType} className="w-full h-full object-contain mix-blend-multiply" />;
+        return (
+          <div 
+            className="w-full h-full mix-blend-multiply" 
+            style={{ 
+              backgroundImage: `url(${getLocalImagePath(imgPath)})`,
+              backgroundSize: 'contain',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat'
+            }} 
+            title={(block as any).imageType}
+          />
+        );
       }
       return (
         <div className="w-full h-full flex flex-col items-center justify-center bg-gray-50 border border-gray-200 border-dashed rounded text-text-muted">
@@ -132,12 +138,20 @@ const BlockPreview = ({ block, form }: { block: TemplateBlock, form: any }) => {
           <span className="text-[10px] font-bold">{(block as any).imageType === 'seal' ? '회사 직인' : '회사 로고'}</span>
         </div>
       );
+    case 'page_number':
+      const formatString = (block as any).format || '{current} / {total}';
+      const sampleText = formatString.replace('{current}', '1').replace('{total}', '2');
+      return (
+        <div className="w-full h-full flex items-center p-2" style={{ color: (block as any).color, fontSize: (block as any).fontSize, justifyContent: (block as any).align === 'center' ? 'center' : (block as any).align === 'right' ? 'flex-end' : 'flex-start' }}>
+          {sampleText}
+        </div>
+      );
     case 'company_info':
       const sealPath = form?.seal_path;
       return (
-        <div className="w-full h-full p-3 bg-gray-50 border border-gray-200 rounded flex flex-col justify-center relative overflow-hidden">
-          <h4 className="font-bold text-xs mb-2">공급자(회사) 정보</h4>
-          <div className="text-[10px] text-gray-600 space-y-1">
+        <div className="w-full h-full p-3 bg-transparent flex flex-col justify-center relative overflow-hidden" style={{ fontSize: (block as any).fontSize, textAlign: (block as any).align || 'left' }}>
+          <h4 className="font-bold mb-2" style={{ fontSize: (block as any).fontSize ? (block as any).fontSize * 1.2 : 12 }}>공급자(회사) 정보</h4>
+          <div className="text-gray-600 space-y-1" style={{ fontSize: (block as any).fontSize || 10 }}>
             <p>상호: {form?.name || '(주)우리회사'}</p>
             {(block as any).fields?.includes('ceo_name') && <p>대표자: {form?.ceo_name || '김대표'}</p>}
             {(block as any).fields?.includes('biz_num') && <p>사업자번호: {form?.biz_num || '123-45-67890'}</p>}
@@ -152,6 +166,28 @@ const BlockPreview = ({ block, form }: { block: TemplateBlock, form: any }) => {
               </div>
             )
           )}
+        </div>
+      );
+    case 'document_info':
+      return (
+        <div className="w-full h-full p-2 bg-transparent flex flex-col justify-center relative overflow-hidden" style={{ fontSize: (block as any).fontSize, textAlign: (block as any).align || 'left' }}>
+          <div className="text-gray-600 space-y-1" style={{ fontSize: (block as any).fontSize || 10 }}>
+            {(block as any).fields?.includes('date') && <p>견적일자: 2024-01-01</p>}
+            {(block as any).fields?.includes('estimate_no') && <p>견적번호: EST-12345678</p>}
+          </div>
+        </div>
+      );
+    case 'summary':
+      return (
+        <div style={{ backgroundColor: 'transparent', fontSize: (block as any).fontSize, justifyContent: 'center', alignItems: (block as any).align === 'center' ? 'center' : (block as any).align === 'right' ? 'flex-end' : 'flex-start' }} className="w-full h-full flex flex-col p-4 relative overflow-hidden">
+          <div className="flex items-center gap-3">
+            <span className="font-bold" style={{ fontSize: (block as any).fontSize ? (block as any).fontSize * 1.5 : 18 }}>합계금액 :</span>
+            {(block as any).showKoreanAmount && (
+              <span className="font-bold text-gray-800" style={{ fontSize: (block as any).fontSize ? (block as any).fontSize * 1.5 : 18 }}>일금 일백만원정</span>
+            )}
+            <span className="font-bold text-blue-700" style={{ fontSize: (block as any).fontSize ? (block as any).fontSize * 2 : 24 }}>(￦ 1,000,000)</span>
+            {(block as any).showVatNote && <span className="text-gray-600 mt-1" style={{ fontSize: (block as any).fontSize || 12 }}>(VAT 별도)</span>}
+          </div>
         </div>
       );
     default:
@@ -226,10 +262,12 @@ interface TemplateBuilderModalProps {
 }
 
 const DEFAULT_IDEAL_BLOCKS: TemplateBlock[] = [
-  { id: 'header_block', type: 'header', band: 'header', x: 30, y: 40, width: 734, height: 60, title: '견 적 서', showLogo: true, align: 'center', fontSize: 24, fontWeight: 'bold' } as any,
-  { id: 'receiver_info_block', type: 'receiver_info', band: 'header', x: 30, y: 110, width: 350, height: 100, fields: ['manager_name', 'phone'] } as any,
+  { id: 'header_block', type: 'header', band: 'header', x: 30, y: 40, width: 734, height: 60, title: '견 적 서', align: 'center', fontSize: 24, fontWeight: 'bold' } as any,
+  { id: 'receiver_info_block', type: 'receiver_info', band: 'header', x: 30, y: 110, width: 350, height: 60, fields: ['manager_name', 'phone'] } as any,
+  { id: 'document_info_block', type: 'document_info', band: 'header', x: 30, y: 175, width: 350, height: 35, fields: ['date', 'estimate_no'] } as any,
   { id: 'company_info_block', type: 'company_info', band: 'header', x: 414, y: 110, width: 350, height: 100, showSeal: true, fields: ['ceo_name', 'biz_num', 'address'] } as any,
-  { id: 'table_block', type: 'item_table', band: 'body', x: 30, y: 250, width: 734, height: 250, columns: ['품명', '규격', '수량', '단가', '공급가액'], theme: 'striped' } as any,
+  { id: 'table_block', type: 'item_table', band: 'body', x: 30, y: 250, width: 734, height: 250, columns: ['No.', '품명', '규격', '수량', '단가', '공급가액'], theme: 'striped' } as any,
+  { id: 'summary_block', type: 'summary', band: 'body', x: 30, y: 520, width: 734, height: 100, highlightColor: '#f3f4f6', showVatNote: true, showKoreanAmount: true, showEnglishAmount: true } as any,
   { id: 'cond_payment', type: 'condition', band: 'footer', x: 30, y: 943, width: 350, height: 60, conditionType: 'payment_terms', showTitle: true } as any,
   { id: 'cond_delivery', type: 'condition', band: 'footer', x: 30, y: 1013, width: 350, height: 60, conditionType: 'delivery_period', showTitle: true } as any,
   { id: 'cond_note', type: 'condition', band: 'footer', x: 400, y: 943, width: 364, height: 130, conditionType: 'note', showTitle: true } as any
@@ -237,9 +275,33 @@ const DEFAULT_IDEAL_BLOCKS: TemplateBlock[] = [
 
 export const TemplateBuilderModal: React.FC<TemplateBuilderModalProps> = ({ onClose, onSave, form, initialTemplate }) => {
   const [templateName, setTemplateName] = useState(initialTemplate?.name || '새 커스텀 양식');
-  const [blocks, setBlocks] = useState<TemplateBlock[]>(initialTemplate?.layout_json?.blocks || DEFAULT_IDEAL_BLOCKS);
+  const [blocks, setBlocks] = useState<TemplateBlock[]>(() => {
+    const initialBlocks = initialTemplate?.layout_json?.blocks || DEFAULT_IDEAL_BLOCKS;
+    return initialBlocks.map((b: any) => ({
+      ...b,
+      // Ensure blocks don't render outside the canvas (which causes the "overlapping paper" visual bug)
+      x: Math.max(0, Math.min(b.x, 794 - parseInt(String(b.width || 100).replace('px', '')))),
+      y: Math.max(0, Math.min(b.y, 1123 - parseInt(String(b.height || 50).replace('px', ''))))
+    }));
+  });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isPreview, setIsPreview] = useState(false);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
+    basic: true,
+    data: true,
+    etc: true
+  });
+
+  const toggleGroup = (group: string) => {
+    setOpenGroups(prev => ({ ...prev, [group]: !prev[group] }));
+  };
+
+  const renderToolbarButton = (id: BlockType, IconComponent: any, label: string) => (
+    <div onClick={() => addBlock(id)} className="w-full p-3 bg-bg-surface border border-border-default rounded-xl flex items-center gap-3 cursor-pointer hover:border-brand-500 hover:bg-brand-50 hover:text-brand-600 transition-colors group text-text-secondary">
+      <IconComponent className="w-5 h-5 group-hover:text-brand-500" />
+      <span className="text-xs font-bold">{label}</span>
+    </div>
+  );
   
   // Band Heights
   const [headerHeight, setHeaderHeight] = useState(initialTemplate?.layout_json?.headerHeight || 220);
@@ -249,7 +311,7 @@ export const TemplateBuilderModal: React.FC<TemplateBuilderModalProps> = ({ onCl
     const newId = `block_${Date.now()}`;
     let newBlock: any = { id: newId, type, band: 'body', x: 50, y: headerHeight + 50, width: 300, height: 100 };
     
-    if (type === 'header') newBlock = { ...newBlock, band: 'header', y: 50, width: 400, height: 60, title: '견적서', showLogo: true, align: 'center' };
+    if (type === 'header') newBlock = { ...newBlock, band: 'header', y: 50, width: 400, height: 60, title: '견적서', align: 'center' };
     else if (type === 'receiver_info') newBlock = { ...newBlock, width: 300, height: 120, fields: ['manager_name', 'phone'] };
     else if (type === 'item_table') newBlock = { ...newBlock, width: 700, height: 200, columns: ['품명', '수량', '단가', '공급가액'], theme: 'bordered' };
     else if (type === 'condition') newBlock = { ...newBlock, band: 'footer', y: 1123 - footerHeight + 20, width: 300, height: 60, conditionType: 'note', showTitle: true };
@@ -257,6 +319,9 @@ export const TemplateBuilderModal: React.FC<TemplateBuilderModalProps> = ({ onCl
     else if (type === 'line') newBlock = { ...newBlock, width: 600, height: 20, thickness: 1, style: 'solid', color: '#000000' };
     else if (type === 'image') newBlock = { ...newBlock, width: 60, height: 60, imageType: 'seal' };
     else if (type === 'company_info') newBlock = { ...newBlock, width: 300, height: 120, showSeal: true, fields: ['ceo_name', 'biz_num', 'address'] };
+    else if (type === 'document_info') newBlock = { ...newBlock, width: 300, height: 50, fields: ['date', 'estimate_no'] };
+    else if (type === 'summary') newBlock = { ...newBlock, width: 600, height: 100, highlightColor: '#f3f4f6', showVatNote: true, showKoreanAmount: true };
+    else if (type === 'page_number') newBlock = { ...newBlock, band: 'footer', y: 1123 - footerHeight + 100, width: 150, height: 30, format: '{current} / {total}', align: 'center', fontSize: 12, color: '#666666' };
     
     setBlocks([...blocks, newBlock]);
     setSelectedId(newId);
@@ -364,52 +429,67 @@ export const TemplateBuilderModal: React.FC<TemplateBuilderModalProps> = ({ onCl
             <div className="w-64 border-r border-border-default bg-bg-elevated p-4 flex flex-col gap-4 overflow-y-auto">
               <h3 className="text-xs font-black text-text-muted uppercase tracking-widest mb-2">블록 추가</h3>
               
-              <div className="grid grid-cols-2 gap-2">
-                <div onClick={() => addBlock('header')} className="p-4 bg-bg-surface border border-border-default rounded-xl flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-brand-500 hover:text-brand-500 transition-colors group text-text-secondary">
-                  <Image className="w-6 h-6 group-hover:text-brand-500" />
-                  <span className="text-[11px] font-bold">헤더 (로고)</span>
+              <div className="flex flex-col gap-3 mt-4">
+                {/* 기본 정보 */}
+                <div className="border border-border-default rounded-xl overflow-hidden bg-bg-base">
+                  <button onClick={() => toggleGroup('basic')} className="w-full flex items-center justify-between p-3 bg-bg-surface hover:bg-bg-overlay transition-colors">
+                    <span className="text-[11px] font-bold text-text-secondary">기본 정보</span>
+                    {openGroups.basic ? <ChevronDown className="w-4 h-4 text-text-muted" /> : <ChevronRight className="w-4 h-4 text-text-muted" />}
+                  </button>
+                  {openGroups.basic && (
+                    <div className="p-3 flex flex-col gap-2">
+                      {renderToolbarButton('header', Type, '문서 제목')}
+                      {renderToolbarButton('receiver_info', LayoutList, '수신자 정보')}
+                      {renderToolbarButton('document_info', FileText, '문서 정보')}
+                      {renderToolbarButton('company_info', FileText, '내 회사 정보')}
+                      {renderToolbarButton('image', Image, '로고/직인')}
+                    </div>
+                  )}
                 </div>
-                <div onClick={() => addBlock('receiver_info')} className="p-4 bg-bg-surface border border-border-default rounded-xl flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-brand-500 hover:text-brand-500 transition-colors group text-text-secondary">
-                  <LayoutList className="w-6 h-6 group-hover:text-brand-500" />
-                  <span className="text-[11px] font-bold">수신자 정보</span>
+
+                {/* 상세 내역 */}
+                <div className="border border-border-default rounded-xl overflow-hidden bg-bg-base">
+                  <button onClick={() => toggleGroup('data')} className="w-full flex items-center justify-between p-3 bg-bg-surface hover:bg-bg-overlay transition-colors">
+                    <span className="text-[11px] font-bold text-text-secondary">상세 내역</span>
+                    {openGroups.data ? <ChevronDown className="w-4 h-4 text-text-muted" /> : <ChevronRight className="w-4 h-4 text-text-muted" />}
+                  </button>
+                  {openGroups.data && (
+                    <div className="p-3 flex flex-col gap-2">
+                      {renderToolbarButton('item_table', AlignLeft, '품목 테이블')}
+                      {renderToolbarButton('summary', AlignLeft, '합계 금액')}
+                    </div>
+                  )}
                 </div>
-                <div onClick={() => addBlock('company_info')} className="p-4 bg-bg-surface border border-border-default rounded-xl flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-brand-500 hover:text-brand-500 transition-colors group text-text-secondary">
-                  <FileText className="w-6 h-6 group-hover:text-brand-500" />
-                  <span className="text-[11px] font-bold">내 회사 정보</span>
+
+                {/* 기타 요소 */}
+                <div className="border border-border-default rounded-xl overflow-hidden bg-bg-base">
+                  <button onClick={() => toggleGroup('etc')} className="w-full flex items-center justify-between p-3 bg-bg-surface hover:bg-bg-overlay transition-colors">
+                    <span className="text-[11px] font-bold text-text-secondary">기타 요소</span>
+                    {openGroups.etc ? <ChevronDown className="w-4 h-4 text-text-muted" /> : <ChevronRight className="w-4 h-4 text-text-muted" />}
+                  </button>
+                  {openGroups.etc && (
+                    <div className="p-3 flex flex-col gap-2">
+                      {renderToolbarButton('label', TextQuote, '텍스트 라벨')}
+                      {renderToolbarButton('line', Minus, '구분선')}
+                      {renderToolbarButton('condition', TextQuote, '발행 조건')}
+                      {renderToolbarButton('page_number', Hash, '페이지 번호')}
+                    </div>
+                  )}
                 </div>
-                <div onClick={() => addBlock('item_table')} className="p-4 bg-bg-surface border border-border-default rounded-xl flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-brand-500 hover:text-brand-500 transition-colors group text-text-secondary">
-                  <AlignLeft className="w-6 h-6 group-hover:text-brand-500" />
-                  <span className="text-[11px] font-bold">품목 테이블</span>
-                </div>
-                <div onClick={() => addBlock('label')} className="p-4 bg-bg-surface border border-border-default rounded-xl flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-brand-500 hover:text-brand-500 transition-colors group text-text-secondary">
-                  <TextQuote className="w-6 h-6 group-hover:text-brand-500" />
-                  <span className="text-[11px] font-bold">텍스트 라벨</span>
-                </div>
-                <div onClick={() => addBlock('line')} className="p-4 bg-bg-surface border border-border-default rounded-xl flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-brand-500 hover:text-brand-500 transition-colors group text-text-secondary">
-                  <Minus className="w-6 h-6 group-hover:text-brand-500" />
-                  <span className="text-[11px] font-bold">구분선</span>
-                </div>
-                <button onClick={() => addBlock('condition')} className="w-full flex flex-col items-center gap-2 p-3 rounded-xl border border-border-default hover:border-brand-500 hover:bg-brand-bg hover:text-brand-500 transition-all group">
-                  <TextQuote className="w-6 h-6 text-text-muted group-hover:text-brand-500" />
-                  <span className="text-[11px] font-bold tracking-tight">발행 조건</span>
-                </button>
-                <button onClick={() => addBlock('image')} className="w-full flex flex-col items-center gap-2 p-3 rounded-xl border border-border-default hover:border-brand-500 hover:bg-brand-bg hover:text-brand-500 transition-all group">
-                  <Image className="w-6 h-6 text-text-muted group-hover:text-brand-500" />
-                  <span className="text-[11px] font-bold tracking-tight">로고/직인</span>
-                </button>
               </div>
             </div>
           )}
 
           {/* Center Panel (Canvas) */}
           <div 
-            className="flex-1 bg-bg-base overflow-y-auto p-12 flex justify-center" 
+            className="flex-1 bg-bg-base overflow-y-auto p-12 flex justify-center items-start" 
             onClick={() => !isPreview && setSelectedId(null)}
           >
-            <div 
-              className={`w-[794px] min-h-[1123px] bg-white shadow-lg relative flex flex-col text-black shrink-0 ${!isPreview ? 'bg-[url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCI+CjxyZWN0IHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCIgZmlsbD0ibm9uZSI+PC9yZWN0Pgo8Y2lyY2xlIGN4PSIxIiBjeT0iMSIgcj0iMSIgZmlsbD0iI2QxZDVkYiI+PC9jaXJjbGU+Cjwvc3ZnPg==")]' : ''}`} 
-              onClick={(e) => e.stopPropagation()}
-            >
+            <div className="pb-12 shrink-0">
+              <div 
+                className={`w-[794px] h-[1123px] bg-white shadow-lg relative flex flex-col text-black shrink-0 ${!isPreview ? 'bg-[url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCI+CjxyZWN0IHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCIgZmlsbD0ibm9uZSI+PC9yZWN0Pgo8Y2lyY2xlIGN4PSIxIiBjeT0iMSIgcj0iMSIgZmlsbD0iI2QxZDVkYiI+PC9jaXJjbGU+Cjwvc3ZnPg==")]' : ''}`} 
+                onClick={(e) => e.stopPropagation()}
+              >
               
               {/* Visual Band Backgrounds (Not containers) */}
               <div style={{ height: headerHeight }} className={`relative w-full shrink-0 ${!isPreview ? 'border-b-2 border-dashed border-blue-300 bg-blue-50/20' : ''}`}>
@@ -425,7 +505,7 @@ export const TemplateBuilderModal: React.FC<TemplateBuilderModalProps> = ({ onCl
               </div>
 
               <div className={`flex-1 relative w-full shrink-0 ${!isPreview ? 'border-b-2 border-dashed border-green-300 bg-green-50/10' : ''}`}>
-                {!isPreview && <div className="absolute -left-16 top-[calc(var(--header-height)+8px)] text-[10px] text-green-500 font-bold bg-green-100 px-2 py-1 rounded" style={{ '--header-height': `${headerHeight}px` } as any}>BODY</div>}
+                {!isPreview && <div className="absolute -left-16 top-2 text-[10px] text-green-500 font-bold bg-green-100 px-2 py-1 rounded">BODY</div>}
               </div>
 
               <div style={{ height: footerHeight }} className={`relative w-full shrink-0 ${!isPreview ? 'bg-purple-50/20' : ''}`}>
@@ -464,6 +544,7 @@ export const TemplateBuilderModal: React.FC<TemplateBuilderModalProps> = ({ onCl
                 />
               ))}
 
+            </div>
             </div>
           </div>
 

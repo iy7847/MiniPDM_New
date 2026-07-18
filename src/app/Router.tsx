@@ -19,6 +19,8 @@ import { ShippingPage } from '../features/shipping/ShippingPage';
 import { AnalyticsPage } from '../features/analytics/AnalyticsPage';
 import { OnboardingPage } from '../features/onboarding/OnboardingPage';
 
+import { PrintEstimatePage } from '../features/estimates/PrintEstimatePage';
+
 // 빈 페이지들을 위한 임시 컴포넌트
 const PlaceholderPage = ({ title }: { title: string }) => (
   <div className="flex items-center justify-center h-full text-text-secondary animate-in fade-in">
@@ -87,6 +89,14 @@ const AuthGuard = ({ children, rejectPartner = false }: { children: React.ReactN
 };
 
 const router = createHashRouter([
+  {
+    path: '/print/estimate/:id',
+    element: (
+      <AuthGuard>
+        <PrintEstimatePage />
+      </AuthGuard>
+    ),
+  },
   {
     path: '/onboarding',
     element: (

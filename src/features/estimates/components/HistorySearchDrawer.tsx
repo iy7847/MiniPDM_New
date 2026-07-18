@@ -34,7 +34,7 @@ export const HistorySearchDrawer: React.FC<HistorySearchDrawerProps> = ({
     setIsLoading(true);
     setHasSearched(true);
     try {
-      const data = await searchPastItems({
+      const { data } = await searchPastItems({
         companyId,
         keyword: searchTerm,
         sizeW: w,

@@ -12,6 +12,8 @@ import type { EstimateItem } from '../types';
 import { INITIAL_ITEM_FORM } from '../types';
 import { EstimateItemExpanded } from './EstimateItemExpanded';
 import { BaseInput } from '../../../design-system/BaseInput';
+import { Badge } from '../../../design-system/Badge';
+import { EXT_2D, EXT_3D } from '../utils/fileMatching';
 
 interface EstimateTableProps {
   items: EstimateItem[];
@@ -164,21 +166,35 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
       header: '첨부파일',
       cell: ({ row }) => {
         const item = row.original as any;
-        const rawFiles = item.tempFiles && item.tempFiles.length > 0 ? item.tempFiles : (item.files && item.files.length > 0 ? item.files : []);
+        const rawFiles = [...(item.files || []), ...(item.tempFiles || [])];
         const files = rawFiles.filter((f: any) => f != null);
         if (files.length === 0) return null;
         
-        const fileName = files[0].name || files[0].file_name || '';
-        const fileExt = fileName.split('.').pop()?.toLowerCase() || '';
-        const is2D = ['pdf', 'dwg', 'dxf', 'png', 'jpg', 'jpeg'].includes(fileExt);
-        const is3D = ['step', 'stp', 'iges', 'igs'].includes(fileExt);
+        let count3D = 0;
+        let count2D = 0;
+        
+        files.forEach((f: any) => {
+          const fileName = f.name || f.file_name || '';
+          const extName = '.' + (fileName.split('.').pop()?.toLowerCase() || '');
+          if (EXT_3D.includes(extName)) {
+            count3D++;
+          } else {
+            count2D++;
+          }
+        });
 
         return (
-          <div className="flex items-center gap-1 overflow-hidden">
-            {is2D && <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20"><FileText size={10}/> 2D</span>}
-            {is3D && <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20"><Box size={10}/> 3D</span>}
-            {!is2D && !is3D && fileName && <span className="text-[10px] text-text-secondary truncate max-w-[60px]" title={fileName}>{fileName}</span>}
-            {files.length > 1 && <span className="shrink-0 text-[10px] text-text-secondary">+{files.length - 1}</span>}
+          <div className="flex items-center gap-1.5 overflow-hidden">
+            {count2D > 0 && (
+              <Badge variant="info" className="py-1 px-2 font-bold text-[10px] flex items-center">
+                <FileText size={12} className="mr-1" /> 2D <span className="ml-1 opacity-70">({count2D})</span>
+              </Badge>
+            )}
+            {count3D > 0 && (
+              <Badge variant="warning" className="py-1 px-2 font-bold text-[10px] flex items-center">
+                <Box size={12} className="mr-1" /> 3D <span className="ml-1 opacity-70">({count3D})</span>
+              </Badge>
+            )}
           </div>
         );
       },

@@ -1,4 +1,6 @@
 export * from './BaseInput';
+export * from './SplitPaneModal';
+export * from './Toast';
 export type { BaseInputProps } from './BaseInput';
 export * from './CurrencyInput';
 export * from './PhoneInput';

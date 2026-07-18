@@ -1,4 +1,4 @@
-export type BlockType = 'header' | 'receiver_info' | 'summary' | 'item_table' | 'terms_notes' | 'condition' | 'free_text' | 'label' | 'line' | 'image' | 'company_info';
+export type BlockType = 'header' | 'receiver_info' | 'company_info' | 'document_info' | 'summary' | 'item_table' | 'terms_notes' | 'condition' | 'free_text' | 'label' | 'line' | 'image' | 'page_number';
 export type TemplateBand = 'header' | 'body' | 'footer';
 
 export interface BaseBlock {
@@ -9,13 +9,16 @@ export interface BaseBlock {
   y: number;
   width: number | string;
   height: number | string;
+  fontSize?: number;
+  align?: 'left' | 'center' | 'right';
 }
 
 export interface HeaderBlock extends BaseBlock {
   type: 'header';
   title: string;
-  showLogo: boolean;
   align: 'left' | 'center' | 'right';
+  fontSize: number;
+  fontWeight: string;
 }
 
 export interface ReceiverInfoBlock extends BaseBlock {
@@ -28,6 +31,7 @@ export interface SummaryBlock extends BaseBlock {
   highlightColor: string;
   validityText: string;
   showVatNote: boolean;
+  showKoreanAmount: boolean;
 }
 
 export interface ItemTableBlock extends BaseBlock {
@@ -69,6 +73,11 @@ export interface CompanyInfoBlock extends BaseBlock {
   fields: string[]; // e.g. ['ceo_name', 'biz_num', 'address', 'phone', 'email']
 }
 
+export interface DocumentInfoBlock extends BaseBlock {
+  type: 'document_info';
+  fields: string[]; // e.g. ['date', 'estimate_no']
+}
+
 export interface LabelBlock extends BaseBlock {
   type: 'label';
   text: string;
@@ -87,16 +96,28 @@ export interface LineBlock extends BaseBlock {
   marginBottom: number;
 }
 
+export interface PageNumberBlock extends BaseBlock {
+  type: 'page_number';
+  format: 'Page {current} / {total}' | '{current} / {total}' | '- {current} -';
+  align: 'left' | 'center' | 'right';
+  fontSize: number;
+  color: string;
+}
+
 export type TemplateBlock = 
   | HeaderBlock 
-  | SenderReceiverBlock 
   | SummaryBlock 
   | ItemTableBlock 
   | TermsNotesBlock 
   | ConditionBlock
   | FreeTextBlock
   | LabelBlock
-  | LineBlock;
+  | LineBlock
+  | CompanyInfoBlock
+  | ReceiverInfoBlock
+  | ImageBlock
+  | DocumentInfoBlock
+  | PageNumberBlock;
 
 export interface TemplateMetadata {
   headerHeight: number;

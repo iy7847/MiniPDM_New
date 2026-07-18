@@ -25,6 +25,19 @@ const formatPhoneNumber = (value: string) => {
   }
 };
 
+const getLocalImagePath = (path: string | undefined | null) => {
+  if (!path) return '';
+  if (path.startsWith('http') || path.startsWith('data:') || path.startsWith('blob:')) return path;
+  
+  let normalizedPath = path.replace(/\\/g, '/');
+  normalizedPath = normalizedPath.replace(/^file:\/\/\//i, '');
+  
+  if (import.meta.env.DEV) {
+    return `/@fs/${normalizedPath}`;
+  }
+  return `file:///${normalizedPath}`;
+};
+
 export const QuotationTemplate = React.forwardRef<HTMLDivElement, QuotationTemplateProps>(({ companyInfo, clientInfo, estimate, items }, ref) => {
   const [logoSrc, setLogoSrc] = useState<string | null>(null);
   const [sealSrc, setSealSrc] = useState<string | null>(null);
@@ -32,12 +45,20 @@ export const QuotationTemplate = React.forwardRef<HTMLDivElement, QuotationTempl
   useEffect(() => {
     const loadImages = async () => {
       if (companyInfo?.logo_path) {
-        const { data } = supabase.storage.from('company_assets').getPublicUrl(companyInfo.logo_path);
-        setLogoSrc(data.publicUrl);
+        if (companyInfo.logo_path.startsWith('C:') || companyInfo.logo_path.startsWith('D:')) {
+          setLogoSrc(getLocalImagePath(companyInfo.logo_path));
+        } else {
+          const { data } = supabase.storage.from('company_assets').getPublicUrl(companyInfo.logo_path);
+          setLogoSrc(data.publicUrl);
+        }
       }
       if (companyInfo?.seal_path) {
-        const { data } = supabase.storage.from('company_assets').getPublicUrl(companyInfo.seal_path);
-        setSealSrc(data.publicUrl);
+        if (companyInfo.seal_path.startsWith('C:') || companyInfo.seal_path.startsWith('D:')) {
+          setSealSrc(getLocalImagePath(companyInfo.seal_path));
+        } else {
+          const { data } = supabase.storage.from('company_assets').getPublicUrl(companyInfo.seal_path);
+          setSealSrc(data.publicUrl);
+        }
       }
     };
     loadImages();
@@ -49,7 +70,7 @@ export const QuotationTemplate = React.forwardRef<HTMLDivElement, QuotationTempl
   const today = new Date().toISOString().split('T')[0];
 
   return (
-    <div ref={ref} className="w-[210mm] min-h-[297mm] p-[15mm] bg-bg-surface text-text-primary font-sans text-sm leading-snug mx-auto relative box-border overflow-hidden print:w-[210mm] print:h-[297mm] print:p-[15mm] print:m-0 print:overflow-visible print:bg-white print:text-black">
+    <div ref={ref} className="w-[210mm] p-[15mm] bg-white text-black font-sans text-sm leading-snug mx-auto relative box-border overflow-hidden print:w-[210mm] print:h-[297mm] print:p-[15mm] print:m-0 print:overflow-visible print:bg-white print:text-black">
       <div className="flex justify-between items-end mb-8">
         <div className="w-6/12">
           {logoSrc && <img src={logoSrc} alt="Logo" className="h-10 mb-2 object-contain" />}
@@ -57,27 +78,27 @@ export const QuotationTemplate = React.forwardRef<HTMLDivElement, QuotationTempl
             견 적 서
           </h1>
           <div className="text-sm space-y-1">
-            <div className="flex border-b pb-1 mb-1 border-border-default w-fit print:border-gray-400">
+            <div className="flex border-b pb-1 mb-1 border-gray-300 w-fit print:border-gray-400">
               <span className="w-16 font-bold">수 신 :</span>
               <span className="text-lg font-bold">{clientInfo?.name || '귀하'}</span>
             </div>
             <div className="flex">
-              <span className="w-16 font-bold text-text-secondary print:text-gray-600">참 조 :</span>
+              <span className="w-16 font-bold text-gray-600 print:text-gray-600">참 조 :</span>
               <span>담당자 귀하</span>
             </div>
             <div className="flex">
-              <span className="w-16 font-bold text-text-secondary print:text-gray-600">날 짜 :</span>
+              <span className="w-16 font-bold text-gray-600 print:text-gray-600">날 짜 :</span>
               <span>{today}</span>
             </div>
             <div className="flex">
-              <span className="w-16 font-bold text-text-secondary print:text-gray-600">견적번호 :</span>
+              <span className="w-16 font-bold text-gray-600 print:text-gray-600">견적번호 :</span>
               <span>EST-{(estimate.id || '').substring(0, 8).toUpperCase()}</span>
             </div>
           </div>
         </div>
 
-        <div className="w-5/12 border border-border-default p-4 relative rounded-lg bg-bg-elevated print:border-gray-300 print:bg-gray-50">
-          <h3 className="text-xs font-bold text-text-secondary mb-2 border-b border-border-default pb-1 block print:text-gray-500 print:border-gray-300">공급자 (Seller)</h3>
+        <div className="w-5/12 border border-gray-300 p-4 relative rounded-lg bg-gray-50 print:border-gray-300 print:bg-gray-50">
+          <h3 className="text-xs font-bold text-gray-600 mb-2 border-b border-gray-300 pb-1 block print:text-gray-500 print:border-gray-300">공급자 (Seller)</h3>
           <div className="space-y-1 text-xs">
             <div className="flex">
               <span className="w-12 font-bold">상 호 :</span>
@@ -121,38 +142,38 @@ export const QuotationTemplate = React.forwardRef<HTMLDivElement, QuotationTempl
           <span className="font-bold text-lg">합 계 금 액 (Total Amount)</span>
           <span className="font-bold text-xl">
             {symbol} {totalAmount.toLocaleString()}
-            <span className="text-xs font-normal ml-1 text-text-secondary print:text-black">({currency === 'KRW' ? 'VAT 별도' : 'VAT Excluded'})</span>
+            <span className="text-xs font-normal ml-1 text-gray-600 print:text-black">({currency === 'KRW' ? 'VAT 별도' : 'VAT Excluded'})</span>
           </span>
         </div>
       </div>
 
       <div className="mb-6">
-        <table className="w-full border-collapse border border-border-default text-xs print:border-gray-300">
+        <table className="w-full border-collapse border border-gray-300 text-xs print:border-gray-300">
           <thead>
-            <tr className="bg-bg-elevated text-center h-8 print:bg-gray-100">
-              <th className="border border-border-default w-10 print:border-gray-300">No</th>
-              <th className="border border-border-default print:border-gray-300">품명 / 규격 (Description)</th>
-              <th className="border border-border-default w-20 print:border-gray-300">재질</th>
-              <th className="border border-border-default w-12 print:border-gray-300">수량</th>
-              <th className="border border-border-default w-24 print:border-gray-300">단가 ({symbol})</th>
-              <th className="border border-border-default w-28 print:border-gray-300">금액 ({symbol})</th>
+            <tr className="bg-gray-50 text-center h-8 print:bg-gray-100">
+              <th className="border border-gray-300 w-10 print:border-gray-300">No</th>
+              <th className="border border-gray-300 print:border-gray-300">품명 / 규격 (Description)</th>
+              <th className="border border-gray-300 w-20 print:border-gray-300">재질</th>
+              <th className="border border-gray-300 w-12 print:border-gray-300">수량</th>
+              <th className="border border-gray-300 w-24 print:border-gray-300">단가 ({symbol})</th>
+              <th className="border border-gray-300 w-28 print:border-gray-300">금액 ({symbol})</th>
             </tr>
           </thead>
           <tbody>
             {items.map((item, idx) => (
               <tr key={idx} className="h-8">
-                <td className="border border-border-default text-center print:border-gray-300">{idx + 1}</td>
-                <td className="border border-border-default px-2 py-1 print:border-gray-300">
+                <td className="border border-gray-300 text-center print:border-gray-300">{idx + 1}</td>
+                <td className="border border-gray-300 px-2 py-1 print:border-gray-300">
                   <div className="font-bold text-sm">{item.part_no}</div>
-                  <div className="text-text-secondary print:text-gray-600">{item.part_name}</div>
-                  <div className="text-text-secondary opacity-70 text-[9px] mt-0.5 print:text-gray-500 print:opacity-100">
+                  <div className="text-gray-600 print:text-gray-600">{item.part_name}</div>
+                  <div className="text-gray-600 opacity-70 text-[9px] mt-0.5 print:text-gray-500 print:opacity-100">
                     {item.shape === 'round' ? `⌀${item.spec_w} x ${item.spec_d}L` : `${item.spec_w} x ${item.spec_d} x ${item.spec_h}t`}
                   </div>
                 </td>
-                <td className="border border-border-default text-center px-1 print:border-gray-300">{item.original_material_name || '-'}</td>
-                <td className="border border-border-default text-center print:border-gray-300">{item.qty}</td>
-                <td className="border border-border-default text-right px-2 print:border-gray-300">{item.unit_price.toLocaleString()}</td>
-                <td className="border border-border-default text-right px-2 font-bold print:border-gray-300">{(item.supply_price || 0).toLocaleString()}</td>
+                <td className="border border-gray-300 text-center px-1 print:border-gray-300">{item.original_material_name || '-'}</td>
+                <td className="border border-gray-300 text-center print:border-gray-300">{item.qty}</td>
+                <td className="border border-gray-300 text-right px-2 print:border-gray-300">{item.unit_price.toLocaleString()}</td>
+                <td className="border border-gray-300 text-right px-2 font-bold print:border-gray-300">{(item.supply_price || 0).toLocaleString()}</td>
               </tr>
             ))}
           </tbody>
@@ -160,20 +181,20 @@ export const QuotationTemplate = React.forwardRef<HTMLDivElement, QuotationTempl
       </div>
 
       <div className="flex gap-6 mb-8 text-xs">
-        <div className="flex-1 border border-border-default p-3 print:border-gray-300">
-          <h3 className="font-bold mb-2 border-b border-border-default pb-1 text-brand-500 print:text-blue-800 print:border-gray-300">📌 특이사항 및 거래조건 (Remarks)</h3>
+        <div className="flex-1 border border-gray-300 p-3 print:border-gray-300">
+          <h3 className="font-bold mb-2 border-b border-gray-300 pb-1 text-brand-500 print:text-blue-800 print:border-gray-300">📌 특이사항 및 거래조건 (Remarks)</h3>
           <table className="w-full border-collapse">
             <tbody>
               <tr><td className="font-bold w-20 py-1">프로젝트 :</td><td>{estimate.project_name}</td></tr>
             </tbody>
           </table>
         </div>
-        <div className="flex-1 border border-border-default p-3 print:border-gray-300">
-          <h3 className="font-bold mb-2 border-b border-border-default pb-1 text-brand-500 print:text-blue-800 print:border-gray-300">🏦 입금 계좌 정보 (Bank Info)</h3>
+        <div className="flex-1 border border-gray-300 p-3 print:border-gray-300">
+          <h3 className="font-bold mb-2 border-b border-gray-300 pb-1 text-brand-500 print:text-blue-800 print:border-gray-300">🏦 입금 계좌 정보 (Bank Info)</h3>
           <div className="space-y-1.5 mt-2">
-            <p><span className="inline-block w-16 font-bold text-text-secondary print:text-gray-600">은행명 :</span> {companyInfo?.bank_name || '기업은행'}</p>
-            <p><span className="inline-block w-16 font-bold text-text-secondary print:text-gray-600">예금주 :</span> {companyInfo?.name || '(주)회사명'}</p>
-            <p><span className="inline-block w-16 font-bold text-text-secondary print:text-gray-600">계좌번호 :</span> <span className="font-bold text-base">{companyInfo?.bank_account || '123-456-7890'}</span></p>
+            <p><span className="inline-block w-16 font-bold text-gray-600 print:text-gray-600">은행명 :</span> {companyInfo?.bank_name || '기업은행'}</p>
+            <p><span className="inline-block w-16 font-bold text-gray-600 print:text-gray-600">예금주 :</span> {companyInfo?.name || '(주)회사명'}</p>
+            <p><span className="inline-block w-16 font-bold text-gray-600 print:text-gray-600">계좌번호 :</span> <span className="font-bold text-base">{companyInfo?.bank_account || '123-456-7890'}</span></p>
           </div>
         </div>
       </div>
@@ -181,7 +202,7 @@ export const QuotationTemplate = React.forwardRef<HTMLDivElement, QuotationTempl
       <div className="flex justify-between mt-10 pt-4">
         <div className="text-center w-1/3">
           <p className="mb-12">Accepted by Buyer</p>
-          <div className="border-t border-border-default pt-1 print:border-black">Authorized Signature</div>
+          <div className="border-t border-gray-300 pt-1 print:border-black">Authorized Signature</div>
         </div>
 
         <div className="text-center w-1/3 relative">
@@ -196,7 +217,7 @@ export const QuotationTemplate = React.forwardRef<HTMLDivElement, QuotationTempl
           )}
 
           <div className="font-bold mb-1">{companyInfo?.name || '(주)회사명'}</div>
-          <div className="border-t border-border-default pt-1 print:border-black">Authorized Signature</div>
+          <div className="border-t border-gray-300 pt-1 print:border-black">Authorized Signature</div>
         </div>
       </div>
     </div>

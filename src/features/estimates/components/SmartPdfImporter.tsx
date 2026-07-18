@@ -157,18 +157,18 @@ export function SmartPdfImporter({ isOpen, onClose, onImportComplete }: SmartPdf
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-bg-overlay/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <Card className="w-full max-w-[95vw] h-[95vh] flex flex-col bg-bg-elevated border border-border-default shadow-2xl overflow-hidden">
-        <div className="p-4 border-b border-border-default flex justify-between items-center bg-bg-surface shrink-0">
+      <Card className="w-full max-w-[95vw] h-[95vh] flex flex-col bg-bg-elevated border border-border-default border-border-default shadow-2xl overflow-hidden">
+        <div className="p-4 border-b border-border-default border-border-default flex justify-between items-center bg-bg-surface shrink-0">
           <div className="flex items-center gap-4">
             <h2 className="text-xl font-bold text-text-primary">도면 일괄 분석 (Smart OCR)</h2>
-            <div className="flex items-center gap-3 text-xs text-text-secondary bg-bg-base px-3 py-1.5 rounded-md border border-border-default">
-              <span className="flex items-center gap-1"><span className="bg-bg-elevated border border-border-default rounded px-1.5 py-0.5 text-[10px] font-bold text-text-primary shadow-sm">◀</span><span className="bg-bg-elevated border border-border-default rounded px-1.5 py-0.5 text-[10px] font-bold text-text-primary shadow-sm">▶</span> 페이지 이동</span>
+            <div className="flex items-center gap-3 text-xs text-text-secondary bg-bg-base px-3 py-1.5 rounded-md border border-border-default border-border-default">
+              <span className="flex items-center gap-1"><span className="bg-bg-elevated border border-border-default border-border-default rounded px-1.5 py-0.5 text-[10px] font-bold text-text-primary shadow-none">◀</span><span className="bg-bg-elevated border border-border-default border-border-default rounded px-1.5 py-0.5 text-[10px] font-bold text-text-primary shadow-none">▶</span> 페이지 이동</span>
               <span className="w-px h-3 bg-border-default"></span>
-              <span className="flex items-center gap-1"><span className="bg-bg-elevated border border-border-default rounded px-1.5 py-0.5 text-[10px] font-bold text-text-primary shadow-sm">1</span> ~ <span className="bg-bg-elevated border border-border-default rounded px-1.5 py-0.5 text-[10px] font-bold text-text-primary shadow-sm">4</span> (또는 <span className="bg-bg-elevated border border-border-default rounded px-1.5 py-0.5 text-[10px] font-bold text-text-primary shadow-sm">우클릭</span>) 모드 변경</span>
+              <span className="flex items-center gap-1"><span className="bg-bg-elevated border border-border-default border-border-default rounded px-1.5 py-0.5 text-[10px] font-bold text-text-primary shadow-none">1</span> ~ <span className="bg-bg-elevated border border-border-default border-border-default rounded px-1.5 py-0.5 text-[10px] font-bold text-text-primary shadow-none">4</span> (또는 <span className="bg-bg-elevated border border-border-default border-border-default rounded px-1.5 py-0.5 text-[10px] font-bold text-text-primary shadow-none">우클릭</span>) 모드 변경</span>
               <span className="w-px h-3 bg-border-default"></span>
-              <span className="flex items-center gap-1"><span className="bg-bg-elevated border border-border-default rounded px-1.5 py-0.5 text-[10px] font-bold text-text-primary shadow-sm">휠 클릭</span> 이동 (Pan)</span>
+              <span className="flex items-center gap-1"><span className="bg-bg-elevated border border-border-default border-border-default rounded px-1.5 py-0.5 text-[10px] font-bold text-text-primary shadow-none">휠 클릭</span> 이동 (Pan)</span>
               <span className="w-px h-3 bg-border-default"></span>
-              <span className="flex items-center gap-1"><span className="bg-bg-elevated border border-border-default rounded px-1.5 py-0.5 text-[10px] font-bold text-text-primary shadow-sm">Ctrl + 휠</span> 확대/축소</span>
+              <span className="flex items-center gap-1"><span className="bg-bg-elevated border border-border-default border-border-default rounded px-1.5 py-0.5 text-[10px] font-bold text-text-primary shadow-none">Ctrl + 휠</span> 확대/축소</span>
             </div>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose}><X className="w-5 h-5 text-text-secondary" /></Button>
@@ -180,7 +180,7 @@ export function SmartPdfImporter({ isOpen, onClose, onImportComplete }: SmartPdf
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
           >
-            <div className="flex-1 bg-bg-base rounded border border-border-default p-4 overflow-hidden flex flex-col items-center relative">
+            <div className="flex-1 bg-bg-base rounded border border-border-default border-border-default p-4 overflow-hidden flex flex-col items-center relative">
               {isDragOver && (
                 <div className="absolute inset-0 z-50 flex items-center justify-center bg-brand-500/100 bg-opacity-20 backdrop-blur-sm rounded pointer-events-none">
                   <p className="text-2xl font-bold text-brand-400 bg-bg-elevated px-8 py-4 rounded shadow-xl">

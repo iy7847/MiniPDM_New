@@ -1,7 +1,7 @@
 import type { EstimateItem } from '../types';
 
 export const EXT_2D = ['.pdf', '.dwg', '.dxf'];
-export const EXT_3D = ['.step', '.stp', '.igs', '.iges', '.x_t', '.prt', '.sldprt'];
+export const EXT_3D = ['.step', '.stp', '.igs', '.iges', '.x_t', '.x_b', '.prt', '.sldprt', '.ipt', '.iam', '.catpart', '.catproduct', '.par', '.asm', '.psm'];
 
 export interface ParsedGroup {
   id: string;

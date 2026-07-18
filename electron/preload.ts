@@ -19,3 +19,8 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     return ipcRenderer.invoke(channel, ...omit)
   },
 })
+
+import { webUtils } from 'electron'
+contextBridge.exposeInMainWorld('webUtils', {
+  getPathForFile: (file: File) => webUtils.getPathForFile(file)
+})

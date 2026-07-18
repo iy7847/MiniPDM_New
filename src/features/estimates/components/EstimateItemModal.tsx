@@ -7,6 +7,7 @@ import { SplitPaneModal } from '../../../design-system/SplitPaneModal';
 import { DocumentViewer } from './DocumentViewer';
 import { Button } from '../../../design-system/Button';
 import { Search, FileType, CheckCircle, XCircle, UploadCloud } from 'lucide-react';
+import { toast } from '../../../shared/stores/useToastStore';
 
 import { ItemBasicSpecForm } from './forms/ItemBasicSpecForm';
 import { ItemProcessCostForm } from './forms/ItemProcessCostForm';
@@ -25,6 +26,7 @@ interface EstimateItemModalProps {
   onSaveFiles: (itemId: string, files: File[]) => Promise<void>;
   onDeleteExistingFile: (fileId: string) => Promise<void>;
   existingItems?: EstimateItem[];
+  isReadOnly?: boolean;
 }
 
 // 텍스트 유사도 계산 (Levenshtein Distance)
@@ -60,7 +62,7 @@ const getSimilarity = (s1: string, s2: string): number => {
 
 export const EstimateItemModal: React.FC<EstimateItemModalProps> = ({
   isOpen, onClose, estimateId, metadata, currency, exchangeRate,
-  editingItem, onSaveSuccess, onSaveFiles, onDeleteExistingFile, existingItems = []
+  editingItem, onSaveSuccess, onSaveFiles, onDeleteExistingFile, existingItems = [], isReadOnly = false
 }) => {
   const [itemForm, setItemForm] = useState<EstimateItem>(INITIAL_ITEM_FORM);
   const [qtyInput, setQtyInput] = useState<string>('1');
@@ -97,7 +99,7 @@ export const EstimateItemModal: React.FC<EstimateItemModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       if (editingItem) {
-        setItemForm({ ...editingItem, tempFiles: [] });
+        setItemForm({ ...editingItem });
         setQtyInput(String(editingItem.qty || 1));
         
         if (editingItem.material_id) {
@@ -126,7 +128,7 @@ export const EstimateItemModal: React.FC<EstimateItemModalProps> = ({
 
   // Derived Qty
   useEffect(() => {
-    const firstQty = parseInt(qtyInput.split('/')[0]?.trim().replace(/,/g, ''), 10);
+    const firstQty = parseInt(qtyInput.replace(/,/g, ''), 10);
     const validQty = isNaN(firstQty) || firstQty <= 0 ? 1 : firstQty;
     if (validQty !== itemForm.qty) {
       setItemForm(prev => ({ ...prev, qty: validQty }));
@@ -319,12 +321,9 @@ export const EstimateItemModal: React.FC<EstimateItemModalProps> = ({
     if (!estimateId) return alert('견적서 ID가 없습니다.');
     if (!itemForm.part_name) return alert('품명은 필수입니다.');
 
-    const quantities = qtyInput.split('/')
-      .map(q => parseInt(q.trim().replace(/,/g, ''), 10))
-      .filter(n => !isNaN(n) && n > 0)
-      .sort((a, b) => a - b);
+    const qty = parseInt(qtyInput.replace(/,/g, ''), 10);
 
-    if (quantities.length === 0) {
+    if (isNaN(qty) || qty <= 0) {
       return alert('유효한 수량을 입력해주세요.');
     }
 
@@ -340,47 +339,32 @@ export const EstimateItemModal: React.FC<EstimateItemModalProps> = ({
     try {
       const { data: { user } } = await supabase.auth.getUser();
 
-      for (let i = 0; i < quantities.length; i++) {
-        const qty = quantities[i];
-        const thisSupplyPrice = finalUnitPrice * qty;
+      const thisSupplyPrice = finalUnitPrice * qty;
 
-        const payload = {
-          estimate_id: estimateId,
-          ...cleanItemForm,
-          qty,
-          material_id: cleanItemForm.material_id || null,
-          supply_price: thisSupplyPrice,
-          unit_price: finalUnitPrice,
-          updated_by: user?.id,
-        };
+      const payload = {
+        estimate_id: estimateId,
+        ...cleanItemForm,
+        qty,
+        material_id: cleanItemForm.material_id || null,
+        supply_price: thisSupplyPrice,
+        unit_price: finalUnitPrice,
+        updated_by: user?.id,
+      };
 
-        let savedItemId: string | null = null;
+      let savedItemId: string | null = null;
 
-        if (editingItem && i === 0) {
-          const { error } = await supabase.from('estimate_items').update(payload).eq('id', editingItem.id);
-          if (error) throw error;
-          savedItemId = editingItem.id || null;
-        } else {
-          const { data, error } = await supabase.from('estimate_items').insert([payload]).select().single();
-          if (error) throw error;
-          savedItemId = data.id;
-        }
+      if (editingItem) {
+        const { error } = await supabase.from('estimate_items').update(payload).eq('id', editingItem.id);
+        if (error) throw error;
+        savedItemId = editingItem.id || null;
+      } else {
+        const { data, error } = await supabase.from('estimate_items').insert([payload]).select().single();
+        if (error) throw error;
+        savedItemId = data.id;
+      }
 
-        if (savedItemId && tempFiles && tempFiles.length > 0) {
-          await onSaveFiles(savedItemId, tempFiles);
-        }
-
-        if (i > 0 && savedItemId && files && files.length > 0) {
-          const filesToCopy = files.map((f: any) => ({
-            estimate_item_id: savedItemId,
-            file_path: f.file_path,
-            file_name: f.file_name,
-            file_type: f.file_type || 'ETC',
-            version: 1,
-            is_current: true
-          }));
-          await supabase.from('files').insert(filesToCopy);
-        }
+      if (savedItemId && tempFiles && tempFiles.length > 0) {
+        await onSaveFiles(savedItemId, tempFiles);
       }
 
       onSaveSuccess();
@@ -393,6 +377,11 @@ export const EstimateItemModal: React.FC<EstimateItemModalProps> = ({
   const formContent = (
     <>
       <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
+        {isReadOnly && (
+          <div className="bg-warning/10 text-warning px-4 py-3 rounded-lg text-sm font-bold text-center">
+            읽기 전용 모드입니다. 내용을 수정할 수 없습니다.
+          </div>
+        )}
         <ItemBasicSpecForm
           itemForm={itemForm}
           setItemForm={setItemForm}
@@ -403,6 +392,7 @@ export const EstimateItemModal: React.FC<EstimateItemModalProps> = ({
           isRecommending={isRecommending}
           recommendedMaterials={recommendedMaterials}
           handleSpecChange={handleSpecChange}
+          disabled={isReadOnly}
         />
         <ItemProcessCostForm
           itemForm={itemForm}
@@ -415,11 +405,11 @@ export const EstimateItemModal: React.FC<EstimateItemModalProps> = ({
           heatTreatments={heatTreatments}
           postProcessings={postProcessings}
         />
-        <ItemSimilarHistory
+        {/* <ItemSimilarHistory
           similarItems={similarItems}
           setItemForm={setItemForm}
           setIsManualPrice={setIsManualPrice}
-        />
+        /> */}
         <ItemFinalCostForm
           qtyInput={qtyInput}
           setQtyInput={setQtyInput}
@@ -432,10 +422,14 @@ export const EstimateItemModal: React.FC<EstimateItemModalProps> = ({
       
       {/* Fixed Footer for Actions */}
       <div className="shrink-0 p-4 bg-bg-surface border-t border-border-default flex gap-4">
-        <Button variant="secondary" className="flex-1" onClick={onClose}>취소</Button>
-        <Button variant="primary" className="flex-1" onClick={handleSave}>
-          {editingItem ? '수정 저장' : '추가하기'}
+        <Button variant="secondary" className="flex-1" onClick={onClose}>
+          {isReadOnly ? '닫기' : '취소'}
         </Button>
+        {!isReadOnly && (
+          <Button variant="primary" className="flex-1" onClick={handleSave}>
+            {editingItem ? '수정 저장' : '추가하기'}
+          </Button>
+        )}
       </div>
     </>
   );
@@ -460,15 +454,17 @@ export const EstimateItemModal: React.FC<EstimateItemModalProps> = ({
   );
 
   // 헤더 드랍존 — PDF iframe 위 드래그 문제를 우회하는 가장 확실한 방법
-  const headerDropZone = (
+  const headerDropZone = isReadOnly ? null : (
     <div
-      onDragOver={(e) => { e.preventDefault(); setHeaderDragOver(true); }}
-      onDragEnter={(e) => { e.preventDefault(); setHeaderDragOver(true); }}
-      onDragLeave={(e) => { e.preventDefault(); setHeaderDragOver(false); }}
+      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setHeaderDragOver(true); }}
+      onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setHeaderDragOver(true); }}
+      onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setHeaderDragOver(false); }}
       onDrop={(e) => {
         e.preventDefault();
+        e.stopPropagation();
         setHeaderDragOver(false);
         if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          toast.success(`${e.dataTransfer.files.length}개의 파일이 첨부되었습니다.`);
           setItemForm(prev => ({ ...prev, tempFiles: [...(prev.tempFiles || []), ...Array.from(e.dataTransfer.files)] }));
         }
       }}

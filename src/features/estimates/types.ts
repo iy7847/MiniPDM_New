@@ -17,6 +17,7 @@ export type Estimate = {
   created_at: string;
   updated_at: string;
   clients?: { name: string };
+  item_count?: number;
 };
 
 export type EstimateItem = {

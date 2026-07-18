@@ -65,27 +65,6 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
                 onChange={(e) => updateBlock(selectedBlock.id, { title: e.target.value })}
               />
             </div>
-            <div className="flex items-center justify-between">
-              <label className="text-[10px] font-bold text-text-muted uppercase">로고 표시</label>
-              <input 
-                type="checkbox" 
-                checked={selectedBlock.showLogo} 
-                onChange={(e) => updateBlock(selectedBlock.id, { showLogo: e.target.checked })} 
-                className="w-4 h-4 rounded bg-white border-border-strong text-brand-500 focus:ring-brand-500"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-text-muted uppercase">정렬</label>
-              <select 
-                value={selectedBlock.align}
-                onChange={(e) => updateBlock(selectedBlock.id, { align: e.target.value as any })}
-                className="w-full bg-bg-surface border border-border-default rounded-lg p-2 text-sm text-text-primary outline-none focus:border-brand-500"
-              >
-                <option value="left">왼쪽</option>
-                <option value="center">가운데</option>
-                <option value="right">오른쪽</option>
-              </select>
-            </div>
           </div>
         );
       case 'receiver_info':
@@ -115,6 +94,72 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
                     <span className="text-xs text-text-primary">{f.label}</span>
                   </label>
                 ))}
+              </div>
+            </div>
+          </div>
+        );
+      case 'document_info':
+        return (
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-text-muted uppercase">표시 항목</label>
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                {[
+                  { id: 'date', label: '견적일자' },
+                  { id: 'estimate_no', label: '견적번호' }
+                ].map(f => (
+                  <label key={f.id} className="flex items-center gap-2">
+                    <input 
+                      type="checkbox" 
+                      checked={selectedBlock.fields?.includes(f.id)} 
+                      onChange={(e) => {
+                        const newFields = e.target.checked 
+                          ? [...(selectedBlock.fields || []), f.id] 
+                          : (selectedBlock.fields || []).filter((id: string) => id !== f.id);
+                        updateBlock(selectedBlock.id, { fields: newFields });
+                      }} 
+                      className="w-4 h-4 rounded bg-white border-border-strong text-brand-500 focus:ring-brand-500"
+                    />
+                    <span className="text-xs text-text-primary">{f.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      case 'summary':
+        return (
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-text-muted uppercase">배경색상</label>
+              <input 
+                type="color" 
+                value={selectedBlock.highlightColor || '#f3f4f6'} 
+                onChange={(e) => updateBlock(selectedBlock.id, { highlightColor: e.target.value })}
+                className="w-full h-8 cursor-pointer rounded"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-text-muted uppercase">옵션</label>
+              <div className="flex flex-col gap-2 mt-2">
+                <label className="flex items-center gap-2">
+                  <input 
+                    type="checkbox" 
+                    checked={selectedBlock.showVatNote} 
+                    onChange={(e) => updateBlock(selectedBlock.id, { showVatNote: e.target.checked })}
+                    className="w-4 h-4 rounded bg-white border-border-strong text-brand-500 focus:ring-brand-500"
+                  />
+                  <span className="text-xs text-text-primary">VAT 별도 문구 표시</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input 
+                    type="checkbox" 
+                    checked={selectedBlock.showKoreanAmount} 
+                    onChange={(e) => updateBlock(selectedBlock.id, { showKoreanAmount: e.target.checked })}
+                    className="w-4 h-4 rounded bg-white border-border-strong text-brand-500 focus:ring-brand-500"
+                  />
+                  <span className="text-xs text-text-primary">한글 합계 표시 (일금 ...)</span>
+                </label>
               </div>
             </div>
           </div>
@@ -196,18 +241,6 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-bold text-text-muted uppercase">정렬</label>
-              <select 
-                value={selectedBlock.align}
-                onChange={(e) => updateBlock(selectedBlock.id, { align: e.target.value as any })}
-                className="w-full bg-bg-surface border border-border-default rounded-lg p-2 text-sm text-text-primary outline-none focus:border-brand-500"
-              >
-                <option value="left">왼쪽</option>
-                <option value="center">가운데</option>
-                <option value="right">오른쪽</option>
-              </select>
-            </div>
-            <div className="space-y-1">
               <label className="text-[10px] font-bold text-text-muted uppercase">폰트 두께</label>
               <select 
                 value={selectedBlock.fontWeight}
@@ -218,14 +251,6 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
                 <option value="bold">굵게 (Bold)</option>
                 <option value="black">매우 굵게 (Black)</option>
               </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-text-muted uppercase">글자 크기 (px)</label>
-              <BaseInput 
-                type="number"
-                value={selectedBlock.fontSize} 
-                onChange={(e) => updateBlock(selectedBlock.id, { fontSize: Number(e.target.value) })}
-              />
             </div>
           </div>
         );
@@ -312,6 +337,23 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
             </div>
           </div>
         );
+      case 'page_number':
+        return (
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-text-muted uppercase">포맷</label>
+              <select 
+                value={selectedBlock.format}
+                onChange={(e) => updateBlock(selectedBlock.id, { format: e.target.value as any })}
+                className="w-full bg-bg-surface border border-border-default rounded-lg p-2 text-sm text-text-primary outline-none focus:border-brand-500"
+              >
+                <option value="{current} / {total}">1 / 2 (기본)</option>
+                <option value="Page {current} / {total}">Page 1 / 2</option>
+                <option value="- {current} -">- 1 -</option>
+              </select>
+            </div>
+          </div>
+        );
       default:
         return <div className="text-sm text-text-muted">설정 가능한 속성이 없습니다.</div>;
     }
@@ -350,6 +392,48 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
       </div>
 
       {renderProperties()}
+
+      {/* 공통 텍스트 설정 */}
+      {!['line', 'image', 'item_table'].includes(selectedBlock.type) && (
+        <div className="mt-6 pt-6 border-t border-border-default space-y-4">
+          <h4 className="text-[10px] font-bold text-text-muted uppercase tracking-widest mb-3">공통 텍스트 스타일</h4>
+          
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-text-muted uppercase">정렬</label>
+            <div className="flex bg-bg-surface border border-border-default rounded-lg p-1">
+              <button
+                onClick={() => updateBlock(selectedBlock.id, { align: 'left' })}
+                className={`flex-1 py-1.5 text-xs font-bold rounded ${selectedBlock.align === 'left' || !selectedBlock.align ? 'bg-bg-elevated shadow-sm text-brand-500' : 'text-text-muted hover:text-text-primary'}`}
+              >
+                왼쪽
+              </button>
+              <button
+                onClick={() => updateBlock(selectedBlock.id, { align: 'center' })}
+                className={`flex-1 py-1.5 text-xs font-bold rounded ${selectedBlock.align === 'center' ? 'bg-bg-elevated shadow-sm text-brand-500' : 'text-text-muted hover:text-text-primary'}`}
+              >
+                가운데
+              </button>
+              <button
+                onClick={() => updateBlock(selectedBlock.id, { align: 'right' })}
+                className={`flex-1 py-1.5 text-xs font-bold rounded ${selectedBlock.align === 'right' ? 'bg-bg-elevated shadow-sm text-brand-500' : 'text-text-muted hover:text-text-primary'}`}
+              >
+                오른쪽
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-text-muted uppercase">글자 크기 (px)</label>
+            <BaseInput 
+              type="number"
+              value={selectedBlock.fontSize || ''} 
+              onChange={(e) => updateBlock(selectedBlock.id, { fontSize: Number(e.target.value) })}
+              placeholder="기본 크기"
+            />
+            <p className="text-[10px] text-text-secondary mt-1">블록 내부의 텍스트 크기를 일괄 조절합니다. 비워두면 기본 크기가 적용됩니다.</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
