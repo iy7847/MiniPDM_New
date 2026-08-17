@@ -61,7 +61,7 @@ export const ItemBasicSpecForm: React.FC<ItemBasicSpecFormProps> = ({
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm text-text-secondary mb-1">품명</label>
-          <BaseInput value={itemForm.part_name} onChange={e => setItemForm({ ...itemForm, part_name: e.target.value })} placeholder="품명" />
+          <BaseInput value={itemForm.part_name || ''} onChange={e => setItemForm({ ...itemForm, part_name: e.target.value })} placeholder="품명" />
         </div>
         <div>
           <label className="block text-sm text-text-secondary mb-1">도번</label>
@@ -129,9 +129,9 @@ export const ItemBasicSpecForm: React.FC<ItemBasicSpecFormProps> = ({
       <div className="grid grid-cols-3 gap-4">
         {itemForm.shape === 'rect' ? (
           <>
+            <div><NumberInput label="T (두께)" value={itemForm.spec_h} onChange={v => handleSpecChange('spec_h', v)} /></div>
             <div><NumberInput label="W (가로)" value={itemForm.spec_w} onChange={v => handleSpecChange('spec_w', v)} /></div>
             <div><NumberInput label="D (세로)" value={itemForm.spec_d} onChange={v => handleSpecChange('spec_d', v)} /></div>
-            <div><NumberInput label="T (두께)" value={itemForm.spec_h} onChange={v => handleSpecChange('spec_h', v)} /></div>
           </>
         ) : (
           <>

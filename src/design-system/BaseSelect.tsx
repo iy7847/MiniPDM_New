@@ -5,10 +5,11 @@ export interface BaseSelectProps extends SelectHTMLAttributes<HTMLSelectElement>
   label?: string;
   error?: string;
   options: { value: string; label: string }[];
+  selectClassName?: string;
 }
 
 export const BaseSelect = forwardRef<HTMLSelectElement, BaseSelectProps>(
-  ({ label, error, options, className = '', id, ...props }, ref) => {
+  ({ label, error, options, className = '', selectClassName = '', id, ...props }, ref) => {
     const generatedId = useId();
     const selectId = id || generatedId;
 
@@ -28,6 +29,7 @@ export const BaseSelect = forwardRef<HTMLSelectElement, BaseSelectProps>(
             transition-all duration-200 shadow-sm appearance-none
             disabled:opacity-50 disabled:cursor-not-allowed
             ${error ? 'border-danger focus:ring-danger-bg focus:border-danger' : 'border-border-default hover:border-border-strong'}
+            ${selectClassName}
           `}
           {...props}
         >

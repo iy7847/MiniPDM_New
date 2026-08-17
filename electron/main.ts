@@ -68,7 +68,16 @@ process.on('uncaughtException', (err) => {
 
 ipcMain.handle('read-local-file', async (event, filePath: string) => {
   try {
-    const data = await fs.promises.readFile(filePath);
+    let targetPath = filePath;
+    if (!path.isAbsolute(filePath)) {
+      // First try current directory (MiniPDM_New)
+      targetPath = path.join(process.cwd(), filePath);
+      if (!fs.existsSync(targetPath)) {
+        // Fallback to old MiniPDM directory for migration compatibility
+        targetPath = path.join('D:\\06_Coding\\AntiGravity\\MiniPDM', filePath);
+      }
+    }
+    const data = await fs.promises.readFile(targetPath);
     return { success: true, data: data.buffer };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -83,6 +92,53 @@ ipcMain.handle('open-local-file', async (event, filePath: string) => {
     }
     return { success: true };
   } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('write-local-file', async (event, { filePath, data }: { filePath: string, data: ArrayBuffer | Uint8Array }) => {
+  try {
+    await fs.promises.writeFile(filePath, Buffer.from(data));
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('save-file', async (event, srcPath: string, companyId: string, targetPath: string) => {
+  try {
+    // 앱 데이터 폴더 내 MiniPDM_Storage를 가상 파일 서버로 사용합니다.
+    const storageRoot = path.join(app.getPath('userData'), 'MiniPDM_Storage', companyId);
+    const destDir = path.join(storageRoot, targetPath);
+    await fs.promises.mkdir(destDir, { recursive: true });
+    
+    const fileName = path.basename(srcPath);
+    const destPath = path.join(destDir, fileName);
+    
+    // 파일 복사
+    await fs.promises.copyFile(srcPath, destPath);
+    
+    return { success: true, filePath: destPath };
+  } catch (error: any) {
+    console.error('save-file error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('save-file-from-buffer', async (event, data: ArrayBuffer | Uint8Array, companyId: string, targetPath: string, fileName: string) => {
+  try {
+    const storageRoot = path.join(app.getPath('userData'), 'MiniPDM_Storage', companyId);
+    const destDir = path.join(storageRoot, targetPath);
+    await fs.promises.mkdir(destDir, { recursive: true });
+    
+    const destPath = path.join(destDir, fileName);
+    
+    // 파일 쓰기
+    await fs.promises.writeFile(destPath, Buffer.from(data));
+    
+    return { success: true, filePath: destPath };
+  } catch (error: any) {
+    console.error('save-file-from-buffer error:', error);
     return { success: false, error: error.message };
   }
 });

@@ -120,12 +120,8 @@ export const saveEstimateWithItems = async (estimate: any, items: any[]) => {
 
   const cleanItems = items.map(item => {
     const cleaned = { ...item };
-    // Maintain the original temp id temporarily so we can map files back
-    // The RPC will handle upserting
-    if (cleaned.id && !cleaned.id.includes('-')) {
-      // It's already a valid UUID
-    } else {
-      cleaned.id = crypto.randomUUID(); // Assign new UUID for temp items
+    if (!cleaned.id || cleaned.id.startsWith('temp-') || cleaned.id === 'NEW-PART') {
+      cleaned.id = crypto.randomUUID();
     }
     
     if (cleaned.material_id === '') cleaned.material_id = null;
@@ -146,58 +142,17 @@ export const saveEstimateWithItems = async (estimate: any, items: any[]) => {
   if (error) throw error;
 
   // Insert files for the items
+  /*
   for (let i = 0; i < items.length; i++) {
     const originalItem = items[i];
     const newId = cleanItems[i].id;
     if (originalItem.files && originalItem.files.length > 0) {
       // Check if files are already linked to this new ID in the DB (for updates)
-      // For simplicity, delete existing files for this item and re-insert them, or just insert them if they are imported files.
-      // Wait, if we are updating an existing estimate, it might already have files. 
-      // If originalItem is from an imported cart item, it has a temp ID and will get a new UUID.
-      // So newId is the newly generated UUID, and it won't have files yet.
-      if (originalItem.id && originalItem.id.startsWith('temp-')) {
-        const newFiles = originalItem.files.map((file: any) => {
-          const { id: fileId, estimate_item_id, created_at: fileCreatedAt, ...fileRest } = file;
-          return {
-            ...fileRest,
-            estimate_item_id: newId
-          };
-        });
-
-        const { error: fileError } = await supabase
-          .from('files')
-          .insert(newFiles);
-
-        if (fileError) {
-          console.error('Failed to copy files for new estimate item', newId, fileError);
-        }
-      }
-    }
-
-    // Insert newly dragged tempFiles
-    if (originalItem.tempFiles && originalItem.tempFiles.length > 0) {
-      const newFilesToInsert = originalItem.tempFiles.map((file: File) => {
-        const filePath = (window as any).webUtils ? (window as any).webUtils.getPathForFile(file) : (file as any).path;
-        return {
-          estimate_item_id: newId,
-          file_name: file.name,
-          file_path: filePath,
-          file_type: file.name.split('.').pop() || 'unknown',
-          file_size: file.size,
-          version: 1,
-          is_current: true
-        };
-      });
-
-      const { error: tempFileError } = await supabase
-        .from('files')
-        .insert(newFilesToInsert);
-
-      if (tempFileError) {
-        console.error('Failed to insert temp files', tempFileError);
-      }
+      // 프론트엔드(useEstimatePageActions)에서 물리적 파일 복사 및 DB 삽입을 일괄 처리하므로 
+      // 이 서비스 내부의 중복된 파일 DB 삽입 로직은 주석 처리합니다.
     }
   }
+  */
 
   return data;
 };

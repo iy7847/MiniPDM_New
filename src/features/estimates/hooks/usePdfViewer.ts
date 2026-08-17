@@ -13,7 +13,8 @@ export function usePdfViewer(
   setMasks: React.Dispatch<React.SetStateAction<any[]>>,
   isMaskMode: boolean,
   runOCR: (rect: any) => Promise<void>,
-  RENDER_WIDTH: number
+  RENDER_WIDTH: number,
+  isViewerOnly: boolean = false
 ) {
   const [selection, setSelection] = useState({ x: 0, y: 0, w: 0, h: 0 });
   const [isSelecting, setIsSelecting] = useState(false);
@@ -64,15 +65,18 @@ export function usePdfViewer(
         changePage(1);
       } else if (e.key === '1') {
         setIsMaskMode(prev => !prev);
-      } else if (e.key === '2') {
+      } else if (e.key === '2' && !isViewerOnly) {
         setIsMaskMode(false);
         setOcrMode('part_no');
-      } else if (e.key === '3') {
+      } else if (e.key === '3' && !isViewerOnly) {
         setIsMaskMode(false);
         setOcrMode('part_name');
-      } else if (e.key === '4') {
+      } else if (e.key === '4' && !isViewerOnly) {
         setIsMaskMode(false);
         setOcrMode('material');
+      } else if (e.key.toLowerCase() === 'e') {
+        // 단축키 E: 현재 페이지의 마스킹 모두 지우기
+        setMasks(prev => prev.filter(m => m.page !== pageNumber));
       }
     };
 
@@ -208,7 +212,10 @@ export function usePdfViewer(
           setSelection({ x: 0, y: 0, w: 0, h: 0 });
         } else {
           await runOCR(selection);
+          setSelection({ x: 0, y: 0, w: 0, h: 0 });
         }
+      } else {
+        setSelection({ x: 0, y: 0, w: 0, h: 0 });
       }
     }
   };

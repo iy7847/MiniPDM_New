@@ -69,9 +69,9 @@ export const ItemProcessCostForm: React.FC<ItemProcessCostFormProps> = ({
       <div className="grid grid-cols-3 gap-4">
         {itemForm.shape === 'rect' ? (
           <>
-            <div><NumberInput label="원소재 W" value={itemForm.raw_w} onChange={v => setItemForm({ ...itemForm, raw_w: v })} /></div>
-            <div><NumberInput label="원소재 D" value={itemForm.raw_d} onChange={v => setItemForm({ ...itemForm, raw_d: v })} /></div>
-            <div><NumberInput label="원소재 T" value={itemForm.raw_h} onChange={v => setItemForm({ ...itemForm, raw_h: v })} /></div>
+            <div><NumberInput label="원소재 T (두께)" value={itemForm.raw_h} onChange={v => setItemForm({ ...itemForm, raw_h: v })} /></div>
+            <div><NumberInput label="원소재 W (가로)" value={itemForm.raw_w} onChange={v => setItemForm({ ...itemForm, raw_w: v })} /></div>
+            <div><NumberInput label="원소재 D (세로)" value={itemForm.raw_d} onChange={v => setItemForm({ ...itemForm, raw_d: v })} /></div>
           </>
         ) : (
           <>

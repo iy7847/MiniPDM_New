@@ -24,3 +24,8 @@ import { webUtils } from 'electron'
 contextBridge.exposeInMainWorld('webUtils', {
   getPathForFile: (file: File) => webUtils.getPathForFile(file)
 })
+
+contextBridge.exposeInMainWorld('fileSystem', {
+  saveFile: (srcPath: string, companyId: string, targetPath: string) => ipcRenderer.invoke('save-file', srcPath, companyId, targetPath),
+  saveFileFromBuffer: (data: ArrayBuffer | Uint8Array, companyId: string, targetPath: string, fileName: string) => ipcRenderer.invoke('save-file-from-buffer', data, companyId, targetPath, fileName)
+})

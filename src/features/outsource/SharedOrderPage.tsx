@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '../../design-system/Card';
 import { Button } from '../../design-system/Button';
+import { Table, Thead, Tbody, Tr, Th, Td } from '../../design-system/Table';
 import { CheckCircle2, Download, Printer } from 'lucide-react';
 
 export const SharedOrderPage: React.FC = () => {
@@ -64,33 +65,33 @@ export const SharedOrderPage: React.FC = () => {
               </div>
 
               <div>
-                <table className="w-full text-left border-collapse border border-border-default">
-                  <thead className="bg-bg-elevated">
-                    <tr>
-                      <th className="p-3 border border-border-default font-medium text-text-secondary">품번</th>
-                      <th className="p-3 border border-border-default font-medium text-text-secondary">품명</th>
-                      <th className="p-3 border border-border-default font-medium text-text-secondary">재질</th>
-                      <th className="p-3 border border-border-default font-medium text-text-secondary text-right">수량</th>
-                      <th className="p-3 border border-border-default font-medium text-text-secondary">비고</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td className="p-3 border border-border-default text-text-primary">AG-MBP-01</td>
-                      <td className="p-3 border border-border-default text-text-primary">Main Base Plate</td>
-                      <td className="p-3 border border-border-default text-text-secondary">S45C</td>
-                      <td className="p-3 border border-border-default text-text-primary text-right">2</td>
-                      <td className="p-3 border border-border-default text-text-secondary">부분 열처리 주의</td>
-                    </tr>
-                    <tr>
-                      <td className="p-3 border border-border-default text-text-primary">AG-GS-02</td>
-                      <td className="p-3 border border-border-default text-text-primary">Guide Shaft</td>
-                      <td className="p-3 border border-border-default text-text-secondary">S45C</td>
-                      <td className="p-3 border border-border-default text-text-primary text-right">10</td>
-                      <td className="p-3 border border-border-default text-text-secondary">-</td>
-                    </tr>
-                  </tbody>
-                </table>
+                <Table className="w-full text-left border-collapse border border-border-default">
+                  <Thead className="bg-bg-elevated">
+                    <Tr>
+                      <Th className="p-3 border border-border-default font-medium text-text-secondary">품번</Th>
+                      <Th className="p-3 border border-border-default font-medium text-text-secondary">품명</Th>
+                      <Th className="p-3 border border-border-default font-medium text-text-secondary">재질</Th>
+                      <Th className="p-3 border border-border-default font-medium text-text-secondary text-right">수량</Th>
+                      <Th className="p-3 border border-border-default font-medium text-text-secondary">비고</Th>
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    <Tr>
+                      <Td className="p-3 border border-border-default text-text-primary">AG-MBP-01</Td>
+                      <Td className="p-3 border border-border-default text-text-primary">Main Base Plate</Td>
+                      <Td className="p-3 border border-border-default text-text-secondary">S45C</Td>
+                      <Td className="p-3 border border-border-default text-text-primary text-right">2</Td>
+                      <Td className="p-3 border border-border-default text-text-secondary">부분 열처리 주의</Td>
+                    </Tr>
+                    <Tr>
+                      <Td className="p-3 border border-border-default text-text-primary">AG-GS-02</Td>
+                      <Td className="p-3 border border-border-default text-text-primary">Guide Shaft</Td>
+                      <Td className="p-3 border border-border-default text-text-secondary">S45C</Td>
+                      <Td className="p-3 border border-border-default text-text-primary text-right">10</Td>
+                      <Td className="p-3 border border-border-default text-text-secondary">-</Td>
+                    </Tr>
+                  </Tbody>
+                </Table>
               </div>
             </div>
           </CardContent>

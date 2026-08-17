@@ -1,5 +1,7 @@
 import { PDFDocument, rgb } from 'pdf-lib';
 import type { OcrResult, Mask } from '../components/SmartPdfTypes';
+import type { EstimateItem } from '../types';
+import { createInitialItemForm } from '../types';
 
 const getDirectoryPath = (filePath: string) => {
   const lastSlashIndex = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'));
@@ -12,7 +14,8 @@ export function usePdfExport() {
     ocrResults: OcrResult[],
     masks: Mask[],
     RENDER_WIDTH: number,
-    onImportComplete: (files: File[]) => void,
+    companyInfo: any,
+    onImportComplete: (items: EstimateItem[]) => void,
     onClose: () => void,
     setIsProcessing: (b: boolean) => void
   ) => {
@@ -60,7 +63,17 @@ export function usePdfExport() {
         const pdfFileName = `${safeName}.pdf`;
 
         const pdfFile = new File([pdfBytes as any], pdfFileName, { type: 'application/pdf' });
-        newItems.push(pdfFile);
+        
+        const newItem: EstimateItem = {
+          ...createInitialItemForm(companyInfo),
+          id: crypto.randomUUID(),
+          part_no: res.part_no || '',
+          part_name: res.part_name || '',
+          original_material_name: res.material || '',
+          tempFiles: [pdfFile],
+          qty: 1
+        };
+        newItems.push(newItem);
       }
 
       onImportComplete(newItems);
@@ -82,8 +95,14 @@ export function usePdfExport() {
   ) => {
     if (!file) return;
 
-    const sourcePath = (file as any).path;
-    if (!sourcePath || !(window as any).fileSystem) {
+    let sourcePath = (file as any).path;
+    if (!sourcePath && (window as any).webUtils) {
+      try {
+        sourcePath = (window as any).webUtils.getPathForFile(file);
+      } catch (e) {}
+    }
+
+    if (!sourcePath || !(window as any).ipcRenderer) {
       return alert('이 기능은 Electron 데스크탑 앱에서만 지원됩니다.\n(웹 브라우저에서는 원본 경로 접근 불가)');
     }
 
@@ -95,7 +114,7 @@ export function usePdfExport() {
       const arrayBuffer = await file.arrayBuffer();
       const srcDoc = await PDFDocument.load(arrayBuffer);
 
-      const validResults = ocrResults.filter(res => !res.skip && res.part_no);
+      const validResults = ocrResults.filter(res => !res.skip);
       let savedCount = 0;
 
       for (const res of validResults) {
@@ -128,15 +147,19 @@ export function usePdfExport() {
         }
 
         const pdfBytes = await subDoc.save();
-        const safeName = (res.part_no || res.part_name || `Page${res.page}`).replace(/[^a-zA-Z0-9가-힣\s-_]/g, '').trim();
+        const originalName = file.name.replace(/\.pdf$/i, '');
+        const baseName = res.part_no || res.part_name || `${originalName}_Page_${res.page}`;
+        const safeName = baseName.replace(/[^a-zA-Z0-9가-힣\s-_]/g, '').trim();
         const pdfFileName = `${safeName}.pdf`;
 
-        const result = await (window as any).fileSystem.writeFile(
-          pdfBytes,
-          pdfFileName,
-          targetDir,
-          ''
-        );
+        // filePath 조합 (간단히 '/' 나 '\'를 추가)
+        const separator = targetDir.includes('\\') ? '\\' : '/';
+        const fullPath = `${targetDir}${separator}${pdfFileName}`;
+
+        const result = await (window as any).ipcRenderer.invoke('write-local-file', {
+          filePath: fullPath,
+          data: pdfBytes
+        });
 
         if (!result.success) {
           console.error(`Failed to save ${pdfFileName}:`, result.error);
@@ -154,5 +177,55 @@ export function usePdfExport() {
     }
   };
 
-  return { exportPdf, exportSplitFilesToLocal };
+  const exportSinglePdfWithMask = async (
+    file: File | null,
+    masks: Mask[],
+    RENDER_WIDTH: number,
+    setIsProcessing: (b: boolean) => void
+  ): Promise<File | null> => {
+    if (!file) return null;
+    setIsProcessing(true);
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const srcDoc = await PDFDocument.load(arrayBuffer);
+
+      // 모든 페이지에 대해 반복 (혹은 마스크가 있는 페이지만)
+      for (const mask of masks) {
+        // PDF-lib 페이지 인덱스는 0부터 시작 (mask.page는 1부터 시작)
+        const pageIndex = mask.page - 1;
+        const pages = srcDoc.getPages();
+        if (pageIndex < 0 || pageIndex >= pages.length) continue;
+        
+        const targetPage = pages[pageIndex];
+        const { width, height } = targetPage.getSize();
+        const scaleFactor = width / RENDER_WIDTH;
+
+        const pdfX = mask.x * scaleFactor;
+        const pdfW = mask.w * scaleFactor;
+        const pdfH = mask.h * scaleFactor;
+        const pdfY = height - (mask.y * scaleFactor) - pdfH;
+
+        targetPage.drawRectangle({
+          x: pdfX,
+          y: pdfY,
+          width: pdfW,
+          height: pdfH,
+          color: rgb(1, 1, 1), // White
+          borderColor: undefined,
+          borderWidth: 0,
+        });
+      }
+
+      const pdfBytes = await srcDoc.save();
+      return new File([pdfBytes as any], file.name, { type: 'application/pdf' });
+    } catch (e: any) {
+      console.error('[exportSinglePdfWithMask] Error:', e);
+      alert('마스킹 적용 중 오류가 발생했습니다: ' + e.message);
+      return null;
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  return { exportPdf, exportSplitFilesToLocal, exportSinglePdfWithMask };
 }

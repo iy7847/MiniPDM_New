@@ -102,3 +102,38 @@ export const INITIAL_ITEM_FORM: EstimateItem = {
   tempFiles: [],
   files: []
 };
+
+export const createInitialItemForm = (
+  settings?: any,
+  overrides?: Partial<EstimateItem>
+): EstimateItem => {
+  const baseForm = { ...INITIAL_ITEM_FORM };
+
+  if (settings) {
+    baseForm.hourly_rate = Number(settings.default_hourly_rate ?? 50000);
+    baseForm.profit_rate = Number(settings.default_profit_rate_step ?? 0);
+  }
+
+  const merged = { ...baseForm, ...overrides };
+
+  // 마진 로직 계산 (원소재 사이즈가 아직 설정되지 않았을 때만 자동 세팅)
+  const shape = merged.shape || 'rect';
+  if (settings && (!merged.raw_w && !merged.raw_d && !merged.raw_h) && (merged.spec_w || merged.spec_d || merged.spec_h)) {
+    if (shape === 'rect') {
+      const marginW = Number(settings.default_margin_w ?? 5);
+      const marginD = Number(settings.default_margin_d ?? 5);
+      const marginH = Number(settings.default_margin_h ?? 0);
+      merged.raw_w = merged.spec_w ? merged.spec_w + marginW : 0;
+      merged.raw_d = merged.spec_d ? merged.spec_d + marginD : 0;
+      merged.raw_h = merged.spec_h ? merged.spec_h + marginH : 0;
+    } else {
+      const marginW = Number(settings.default_margin_round_w ?? 5);
+      const marginD = Number(settings.default_margin_round_d ?? 5);
+      merged.raw_w = merged.spec_w ? merged.spec_w + marginW : 0;
+      merged.raw_d = merged.spec_d ? merged.spec_d + marginD : 0;
+      merged.raw_h = 0;
+    }
+  }
+
+  return merged;
+};

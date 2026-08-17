@@ -11,6 +11,7 @@ import {
 import { Plus, ArrowUpDown } from 'lucide-react';
 import { Button } from '../../design-system/Button';
 import { BaseInput } from '../../design-system/BaseInput';
+import { PageHeader, PageTabs, FilterBar } from '../../design-system';
 import { Badge } from '../../design-system/Badge';
 import { useEstimateList } from './hooks/useEstimate';
 import type { Estimate } from './types';
@@ -156,75 +157,106 @@ export const EstimatesPage: React.FC = () => {
     <div className="flex flex-col h-full bg-bg-base animate-in fade-in">
       {/* Header */}
       <div className="p-6 pb-0">
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center gap-6">
-            <h1 className="text-2xl font-bold text-text-primary">견적 관리</h1>
-            <Tabs 
-              tabs={[
-                { id: 'list', label: '견적서 목록', icon: <List size={16} /> },
-                { id: 'search', label: '품목 검색', icon: <Search size={16} /> }
-              ]} 
-              activeTab={activeTab} 
-              onChange={setActiveTab} 
-            />
-          </div>
-          <Button 
-            variant="primary" 
-            onClick={() => navigate('/estimates/new')}
-            className="flex items-center gap-2"
-          >
-            <Plus size={18} />
-            새 견적 작성
-          </Button>
-        </div>
+        <PageHeader
+          title={
+            <div className="flex items-center gap-6">
+              견적 관리
+              <Tabs 
+                tabs={[
+                  { id: 'list', label: '견적서 목록', icon: <List size={16} /> },
+                  { id: 'search', label: '품목 검색', icon: <Search size={16} /> }
+                ]} 
+                activeTab={activeTab} 
+                onChange={setActiveTab} 
+              />
+            </div>
+          }
+          actions={
+            <Button 
+              variant="primary" 
+              onClick={() => navigate('/estimates/new')}
+              className="flex items-center gap-2"
+            >
+              <Plus size={18} />
+              새 견적 작성
+            </Button>
+          }
+        />
 
         {/* Filters and Search - Only show for list tab */}
         {activeTab === 'list' && (
-          <div className="flex justify-between items-center mb-4">
-          <div className="flex space-x-1 bg-bg-surface p-1 rounded-lg border border-border-default">
-            {(['ALL', 'DRAFT', 'SENT', 'ORDERED'] as const).map(tab => (
-              <button
-                key={tab}
-                onClick={() => updateParams({ status: tab })}
-                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  status === tab 
-                    ? 'bg-bg-elevated text-text-primary shadow-sm' 
-                    : 'text-text-secondary hover:text-text-primary hover:bg-bg-elevated/50'
-                }`}
-              >
-                {tab === 'ALL' && '전체'}
-                {tab === 'DRAFT' && '작성중'}
-                {tab === 'SENT' && '견적제출'}
-                {tab === 'ORDERED' && '수주완료'}
-              </button>
-            ))}
-          </div>
-          
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <BaseInput 
-                type="date"
-                value={startDate}
-                onChange={(e) => updateParams({ start: e.target.value })}
-                className="w-36"
-              />
-              <span className="text-text-secondary">~</span>
-              <BaseInput 
-                type="date"
-                value={endDate}
-                onChange={(e) => updateParams({ end: e.target.value })}
-                className="w-36"
-              />
-            </div>
-            <div className="w-64">
-              <BaseInput 
-                placeholder="프로젝트명, 거래처, 견적번호 검색"
-                value={localSearch}
-                onChange={(e) => setLocalSearch(e.target.value)}
-              />
-            </div>
-            </div>
-          </div>
+          <>
+            <PageTabs
+              activeTab={status || 'ALL'}
+              onChange={(tabId) => updateParams({ status: tabId as any })}
+              tabs={[
+                { id: 'ALL', label: '전체' },
+                { id: 'DRAFT', label: '작성중' },
+                { id: 'SENT', label: '견적제출' },
+                { id: 'ORDERED', label: '수주완료' }
+              ]}
+              rightContent={
+                <div className="text-xs text-text-secondary">
+                  총 <span className="text-brand-400 font-bold">{totalCount}</span> 건의 견적서
+                </div>
+              }
+            />
+            <FilterBar>
+              <div className="flex flex-wrap items-center justify-between gap-3 w-full bg-bg-surface p-3 rounded-lg border border-border-default">
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* Date Range Filter */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-text-secondary whitespace-nowrap">견적일자</span>
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => updateParams({ start: e.target.value })}
+                      className="bg-bg-base border border-border-default text-text-primary rounded h-8 text-xs px-2 outline-none focus:border-brand-500"
+                    />
+                    <span className="text-text-secondary text-xs">~</span>
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => updateParams({ end: e.target.value })}
+                      className="bg-bg-base border border-border-default text-text-primary rounded h-8 text-xs px-2 outline-none focus:border-brand-500"
+                    />
+                  </div>
+                  
+                  {/* Reset Button */}
+                  {(localSearch || status !== 'ALL' || startDate || endDate) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setLocalSearch('');
+                        updateParams({
+                          search: '',
+                          status: 'ALL',
+                          start: '',
+                          end: '',
+                          page: 1
+                        });
+                      }}
+                      className="text-xs text-text-secondary hover:text-status-danger h-8"
+                    >
+                      필터 초기화
+                    </Button>
+                  )}
+                </div>
+
+                {/* Search Box */}
+                <div className="w-72 relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
+                  <BaseInput 
+                    className="pl-9 bg-bg-base text-xs" 
+                    placeholder="프로젝트명, 거래처, 견적번호 검색..."
+                    value={localSearch}
+                    onChange={(e) => setLocalSearch(e.target.value)}
+                  />
+                </div>
+              </div>
+            </FilterBar>
+          </>
         )}
       </div>
 

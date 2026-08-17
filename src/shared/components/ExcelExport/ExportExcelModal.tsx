@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, FileSpreadsheet } from 'lucide-react';
 import { Button } from '../../../design-system/Button';
 import type { ExcelExportPreset } from '../../../features/settings/services/settingsService';
@@ -26,7 +27,7 @@ export const ExportExcelModal: React.FC<ExportExcelModalProps> = ({
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-bg-surface w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden border border-border-default animate-in fade-in zoom-in-95 duration-200">
@@ -94,6 +95,7 @@ export const ExportExcelModal: React.FC<ExportExcelModalProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

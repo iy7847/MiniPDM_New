@@ -15,20 +15,20 @@ export interface TabsProps {
 
 export const Tabs: React.FC<TabsProps> = ({ tabs, activeTab, onChange, className = '' }) => {
   return (
-    <div className={`inline-flex bg-bg-elevated p-1.5 rounded-xl border border-border-default shadow-inner ${className}`}>
+    <div className={`inline-flex items-center bg-bg-surface p-1 rounded-lg border border-border-default ${className}`}>
       {tabs.map((tab) => {
         const isActive = activeTab === tab.id;
         return (
           <button
             key={tab.id}
             onClick={() => onChange(tab.id)}
-            className={`flex items-center gap-2 px-6 py-2.5 text-sm font-semibold rounded-lg transition-all duration-300 ${
+            className={`flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ${
               isActive
-                ? 'bg-bg-overlay text-text-primary shadow-sm scale-[1.02] border border-border-strong ring-1 ring-brand-500/20'
-                : 'text-text-secondary hover:text-text-primary hover:bg-bg-overlay/50 border border-transparent'
+                ? 'bg-bg-elevated text-text-primary shadow-sm border border-border-strong'
+                : 'text-text-secondary hover:text-text-primary border border-transparent'
             }`}
           >
-            {tab.icon && <span className="text-base">{tab.icon}</span>}
+            {tab.icon && <span className="opacity-80">{tab.icon}</span>}
             {tab.label}
           </button>
         );

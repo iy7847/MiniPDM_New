@@ -9,11 +9,15 @@ import {
 import type { Row } from '@tanstack/react-table';
 import { Edit2, FileText, Box, ChevronDown, ChevronRight, FileUp, Trash2 } from 'lucide-react';
 import type { EstimateItem } from '../types';
-import { INITIAL_ITEM_FORM } from '../types';
+
 import { EstimateItemExpanded } from './EstimateItemExpanded';
+import { FileBadge } from './FileBadge';
 import { BaseInput } from '../../../design-system/BaseInput';
 import { Badge } from '../../../design-system/Badge';
 import { EXT_2D, EXT_3D } from '../utils/fileMatching';
+import { getCurrencySymbol } from '../../../shared/utils/currency';
+import { DocumentMaskingModal } from '../../../shared/components/DocumentMaskingModal';
+import { ImagePreviewModal } from '../../../shared/components/ImagePreviewModal';
 
 interface EstimateTableProps {
   items: EstimateItem[];
@@ -29,9 +33,10 @@ interface EstimateTableProps {
   exchangeRate?: number;
   onSaveSuccess?: () => void;
   onSaveFiles?: any;
-  onSaveFiles?: any;
   onDeleteExistingFile?: any;
   showForeign?: boolean;
+  onRemoveSingleFile?: (itemId: string, file: any, skipConfirm?: boolean) => void;
+  onRemoveMultipleFiles?: (itemId: string, files: any[]) => void;
 }
 
 const columnHelper = createColumnHelper<EstimateItem>();
@@ -51,7 +56,9 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
   onSaveSuccess,
   onSaveFiles,
   onDeleteExistingFile,
-  showForeign = false
+  showForeign = false,
+  onRemoveSingleFile,
+  onRemoveMultipleFiles
 }) => {
   const [expanded, setExpanded] = useState({});
   const [prevLength, setPrevLength] = useState(items.length);
@@ -63,9 +70,50 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
     setPrevLength(items.length);
   }, [items.length, prevLength]);
 
+  const [maskingModalOpen, setMaskingModalOpen] = React.useState(false);
+  const [maskingFile, setMaskingFile] = React.useState<any>(null);
+  const [maskingItemId, setMaskingItemId] = React.useState<string | null>(null);
+  const [imagePreviewModalOpen, setImagePreviewModalOpen] = React.useState(false);
+  const [previewFile, setPreviewFile] = React.useState<any>(null);
+
+  const handleOpenMasking = async (file: any, itemId?: string) => {
+    const fileName = (file.name || file.file_name || '').toLowerCase();
+    
+    if (fileName.endsWith('.pdf')) {
+      setMaskingFile(file);
+      setMaskingItemId(itemId || null);
+      setMaskingModalOpen(true);
+    } else if (fileName.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+      setPreviewFile(file);
+      setImagePreviewModalOpen(true);
+    } else {
+      let filePath = file.file_path || file.path;
+      if (!filePath && (window as any).webUtils && file instanceof File) {
+        try {
+          filePath = (window as any).webUtils.getPathForFile(file);
+        } catch (e) {}
+      }
+      if (!filePath) {
+        // toast가 import 안되어 있을 수 있으므로 window.alert 대체 혹은 toast 유지
+        if (typeof (window as any).toast !== 'undefined') (window as any).toast.error('로컬 파일 경로를 찾을 수 없어 외부 앱으로 열 수 없습니다.');
+        else alert('로컬 파일 경로를 찾을 수 없어 외부 앱으로 열 수 없습니다.');
+        return;
+      }
+      try {
+        const res = await (window as any).ipcRenderer.invoke('open-local-file', filePath);
+        if (!res.success) {
+          alert('파일을 여는 데 실패했습니다: ' + res.error);
+        }
+      } catch (err: any) {
+        alert('파일을 열 수 없습니다: ' + err.message);
+      }
+    }
+  };
+
   const formatPrice = (value: number) => {
     if (showForeign && exchangeRate > 0) {
-      return new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(value / exchangeRate);
+      const foreignValue = Math.ceil((value / exchangeRate) * 100) / 100;
+      return new Intl.NumberFormat('en-US', { maximumFractionDigits: 2, minimumFractionDigits: 2 }).format(foreignValue);
     }
     return new Intl.NumberFormat('ko-KR').format(value);
   };
@@ -152,12 +200,12 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
       size: 100,
     }),
     columnHelper.accessor('unit_price', {
-      header: '단가',
+      header: () => `단가 ${showForeign ? `(${getCurrencySymbol(currency)})` : '(₩)'}`,
       cell: info => formatPrice(info.getValue() || 0),
       size: 100,
     }),
     columnHelper.accessor('supply_price', {
-      header: '합계',
+      header: () => `합계 ${showForeign ? `(${getCurrencySymbol(currency)})` : '(₩)'}`,
       cell: info => <div className="font-semibold text-brand-400">{formatPrice(info.getValue() || 0)}</div>,
       size: 110,
     }),
@@ -183,17 +231,30 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
           }
         });
 
+        const files2D = files.filter((f: any) => !EXT_3D.includes('.' + ((f.name || f.file_name || '').split('.').pop()?.toLowerCase() || '')));
+        const files3D = files.filter((f: any) => EXT_3D.includes('.' + ((f.name || f.file_name || '').split('.').pop()?.toLowerCase() || '')));
+
         return (
-          <div className="flex items-center gap-1.5 overflow-hidden">
+          <div className="flex items-center gap-1.5 overflow-visible min-h-[24px]">
             {count2D > 0 && (
-              <Badge variant="info" className="py-1 px-2 font-bold text-[10px] flex items-center">
-                <FileText size={12} className="mr-1" /> 2D <span className="ml-1 opacity-70">({count2D})</span>
-              </Badge>
+              <FileBadge 
+                type="2D" 
+                count={count2D} 
+                files={files2D} 
+                onFileClick={(file) => handleOpenMasking(file, item.id)}
+                onFileRemove={onRemoveSingleFile && !isReadOnly ? (file) => onRemoveSingleFile(item.id, file.id || file) : undefined}
+                onRemoveAll={onRemoveMultipleFiles && !isReadOnly ? () => onRemoveMultipleFiles(item.id, files2D.map((f: any) => f.id || f)) : undefined}
+              />
             )}
             {count3D > 0 && (
-              <Badge variant="warning" className="py-1 px-2 font-bold text-[10px] flex items-center">
-                <Box size={12} className="mr-1" /> 3D <span className="ml-1 opacity-70">({count3D})</span>
-              </Badge>
+              <FileBadge 
+                type="3D" 
+                count={count3D} 
+                files={files3D} 
+                onFileClick={(file) => handleOpenMasking(file, item.id)}
+                onFileRemove={onRemoveSingleFile && !isReadOnly ? (file) => onRemoveSingleFile(item.id, file.id || file) : undefined}
+                onRemoveAll={onRemoveMultipleFiles && !isReadOnly ? () => onRemoveMultipleFiles(item.id, files3D.map((f: any) => f.id || f)) : undefined}
+              />
             )}
           </div>
         );
@@ -337,6 +398,26 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
           </table>
         </div>
       )}
+
+      <DocumentMaskingModal 
+        isOpen={maskingModalOpen} 
+        onClose={() => setMaskingModalOpen(false)} 
+        file={maskingFile} 
+        onSaveMaskedPdf={(newFile) => {
+          if (maskingFile && (maskingFile.id || maskingFile.path) && maskingItemId && onRemoveSingleFile && !isReadOnly) {
+            onRemoveSingleFile(maskingItemId, maskingFile.id || maskingFile, true);
+          }
+          if (onSaveFiles && !isReadOnly) {
+            onSaveFiles(maskingItemId!, [newFile]);
+          }
+        }} 
+      />
+
+      <ImagePreviewModal
+        isOpen={imagePreviewModalOpen}
+        onClose={() => setImagePreviewModalOpen(false)}
+        file={previewFile}
+      />
     </div>
   );
 };

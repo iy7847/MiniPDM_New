@@ -176,7 +176,16 @@ export function useEstimateDetail(id: string | undefined) {
       setEstimate(estData || {
           id, project_name: '', client_id: '', created_at: new Date().toISOString().split('T')[0], status: 'DRAFT', total_amount: 0
       });
-      setItems(itemsData || []);
+      setItems(prevItems => {
+        const newItems = itemsData || [];
+        return newItems.map(newItem => {
+          const prevItem = prevItems.find(p => p.id === newItem.id);
+          if (prevItem && prevItem.tempFiles && prevItem.tempFiles.length > 0) {
+            return { ...newItem, tempFiles: prevItem.tempFiles };
+          }
+          return newItem;
+        });
+      });
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -194,12 +203,12 @@ export function useEstimateDetail(id: string | undefined) {
       if (id === 'new') {
         const data = await estimateService.saveEstimateWithItems(updatedEstimate, updatedItems);
         setEstimate({ ...estimate, ...updatedEstimate, id: data?.id });
-        setItems(updatedItems);
+        // id가 new일 때는 navigate 되므로 굳이 loadDetail 할 필요 없지만, 일관성을 위해 둠
+        setItems(updatedItems); 
         return data;
       } else {
         const data = await estimateService.saveEstimateWithItems({ ...updatedEstimate, id }, updatedItems);
-        setEstimate({ ...estimate, ...updatedEstimate });
-        setItems(updatedItems);
+        await loadDetail();
         return data;
       }
     } catch (err: any) {

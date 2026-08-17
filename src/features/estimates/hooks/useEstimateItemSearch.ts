@@ -156,7 +156,7 @@ export function useEstimateItemSearch() {
         ...(p.statusFilter !== undefined && { item_status: p.statusFilter }),
         ...(p.sizeW !== undefined && { item_w: p.sizeW === '' ? '' : p.sizeW.toString() }),
         ...(p.sizeD !== undefined && { item_d: p.sizeD === '' ? '' : p.sizeD.toString() }),
-        ...(p.sizeH !== undefined && { item_H: p.sizeH === '' ? '' : p.sizeH.toString() }),
+        ...(p.sizeH !== undefined && { item_h: p.sizeH === '' ? '' : p.sizeH.toString() }),
         ...(p.tolerance !== undefined && { item_tol: p.tolerance.toString() }),
         ...(p.page !== undefined && { item_page: p.page.toString() }),
       });

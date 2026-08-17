@@ -16,9 +16,10 @@ interface PreviewModalProps {
   estimate: Partial<Estimate>;
   items: EstimateItem[];
   clientInfo: any;
+  showForeign?: boolean;
 }
 
-export function PreviewModal({ isOpen, onClose, estimate, items, clientInfo }: PreviewModalProps) {
+export function PreviewModal({ isOpen, onClose, estimate, items, clientInfo, showForeign }: PreviewModalProps) {
   const [mounted, setMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
@@ -100,6 +101,28 @@ export function PreviewModal({ isOpen, onClose, estimate, items, clientInfo }: P
     ? customTemplates.find(t => t.id === templateType.replace('custom_', ''))
     : null;
 
+  const processedItems = showForeign && estimate?.base_exchange_rate && estimate.base_exchange_rate > 0 
+    ? items.map(item => {
+        const up = (item.unit_price || 0) / estimate.base_exchange_rate!;
+        const sp = (item.supply_price || 0) / estimate.base_exchange_rate!;
+        return {
+          ...item,
+          unit_price: Math.ceil(up * 100) / 100,
+          supply_price: Math.ceil(sp * 100) / 100
+        };
+      })
+    : items;
+
+  const processedEstimate = showForeign && estimate?.base_exchange_rate && estimate.base_exchange_rate > 0
+    ? {
+        ...estimate,
+        total_amount: processedItems.reduce((sum, item) => sum + (item.supply_price || 0), 0)
+      }
+    : {
+        ...estimate,
+        currency: 'KRW'
+      };
+
   return (
     <div className={`fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0'}`}>
       <div className={`bg-bg-surface border border-border-default rounded-xl shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col transition-transform duration-300 ${isOpen ? 'scale-100' : 'scale-95'}`}>
@@ -131,16 +154,16 @@ export function PreviewModal({ isOpen, onClose, estimate, items, clientInfo }: P
               {companyInfo && (
                 activeTemplate ? (
                   <CustomQuotationTemplate
-                    estimate={estimate as Estimate}
-                    items={items}
+                    estimate={processedEstimate as Estimate}
+                    items={processedItems as any}
                     clientInfo={clientInfo}
                     companyInfo={companyInfo}
                     template={activeTemplate}
                   />
                 ) : (
                   <QuotationTemplate
-                    estimate={estimate as Estimate}
-                    items={items}
+                    estimate={processedEstimate as Estimate}
+                    items={processedItems as any}
                     clientInfo={clientInfo}
                     companyInfo={companyInfo}
                   />

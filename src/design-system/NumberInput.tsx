@@ -19,15 +19,17 @@ export interface NumberInputProps extends Omit<BaseInputProps, 'onChange'> {
       };
 
       const [displayValue, setDisplayValue] = useState<string>(
-        value !== undefined ? formatNumber(String(value)) : ''
+        (value !== undefined && value !== null) ? formatNumber(String(value)) : ''
       );
   
       useEffect(() => {
-        if (value !== undefined) {
+        if (value !== undefined && value !== null) {
           const currentRaw = displayValue.replace(/,/g, '');
           if (parseFloat(currentRaw) !== value && currentRaw !== String(value)) {
             setDisplayValue(formatNumber(String(value)));
           }
+        } else if (value === null || value === undefined) {
+          setDisplayValue('');
         }
       }, [value]);
 

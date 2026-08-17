@@ -1,15 +1,17 @@
-import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../../design-system/Card';
-import { Badge } from '../../design-system/Badge';
-import { Button } from '../../design-system/Button';
-import { BaseInput as Input } from '../../design-system/BaseInput';
-import { Search, Filter, ArrowRight } from 'lucide-react';
-
-const MOCK_ORDERS = [
-  { id: 'ORD-2401-001', client: '테스트기업', projectName: '메인 베이스 가공', amount: 1500000, deliveryDate: '2026-07-10', status: '생산중' },
-  { id: 'ORD-2401-002', client: '알파산업', projectName: '서포트 브라켓', amount: 850000, deliveryDate: '2026-07-08', status: '출하대기' },
-  { id: 'ORD-2401-003', client: '제타정밀', projectName: '지그 어셈블리', amount: 3200000, deliveryDate: '2026-07-15', status: '수주등록' },
-];
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useOrderList } from './hooks/useOrderList';
+import { Badge, Button, BaseInput, Tabs, PageHeader, PageTabs, FilterBar } from '../../design-system';
+import { Search, Plus, List, ArrowRight, ArrowUpDown } from 'lucide-react';
+import { CreateOrderModal } from './components/CreateOrderModal';
+import {
+  createColumnHelper,
+  flexRender,
+  getCoreRowModel,
+  useReactTable,
+  getSortedRowModel,
+} from '@tanstack/react-table';
+import type { SortingState } from '@tanstack/react-table';
 
 const calculateDDay = (targetDate: string) => {
   const target = new Date(targetDate).getTime();
@@ -23,112 +25,371 @@ const calculateDDay = (targetDate: string) => {
   return { text: `D-${days}`, variant: 'default' as const };
 };
 
-export const OrdersPage: React.FC = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState<'전체' | '수주등록' | '생산중' | '출하대기'>('전체');
+const columnHelper = createColumnHelper<any>();
 
-  const filteredOrders = MOCK_ORDERS.filter(order => {
-    if (activeTab !== '전체' && order.status !== activeTab) return false;
-    if (searchTerm && !order.client.includes(searchTerm) && !order.projectName.includes(searchTerm)) return false;
-    return true;
+export const OrdersPage: React.FC = () => {
+  const navigate = useNavigate();
+  const {
+    orders,
+    clients,
+    companyId,
+    totalCount,
+    isLoading,
+    searchTerm,
+    setSearchTerm,
+    activeTab,
+    setActiveTab,
+    startDate,
+    setStartDate,
+    endDate,
+    setEndDate,
+    clientId,
+    setClientId,
+    page,
+    setPage,
+    resetFilters,
+    errorMsg
+  } = useOrderList();
+
+  const [sorting, setSorting] = React.useState<SortingState>([]);
+  const [isCreateModalOpen, setIsCreateModalOpen] = React.useState(false);
+  const pageSize = 15;
+  const totalPages = Math.ceil(totalCount / pageSize);
+
+  const columns = [
+    columnHelper.accessor(row => row.po_no || row.order_number || row.id.slice(0,8), {
+      id: 'po_no',
+      header: 'PO 번호 (발주번호)',
+      cell: info => <span className="font-mono font-bold text-text-primary">{info.getValue()}</span>,
+    }),
+    columnHelper.accessor(row => row.clients?.name, {
+      id: 'client_name',
+      header: '고객사',
+      cell: info => info.getValue() || '-',
+    }),
+    columnHelper.accessor(row => row.estimates?.project_name || row.po_no, {
+      id: 'project_name',
+      header: '프로젝트명',
+      cell: info => {
+        const order = info.row.original;
+        const count = order.order_items?.[0]?.count || 0;
+        return (
+          <div className="flex items-center gap-2">
+            <span className="truncate">{info.getValue() || '-'}</span>
+            {count > 0 && (
+              <span className="shrink-0 bg-bg-overlay px-2 py-0.5 rounded-full text-[11px] font-medium text-text-secondary border border-border-default">
+                {count}종
+              </span>
+            )}
+          </div>
+        );
+      },
+    }),
+    columnHelper.accessor('total_amount', {
+      header: '수주금액',
+      cell: info => <span className="font-medium text-text-primary">{info.getValue()?.toLocaleString() || 0}원</span>,
+    }),
+    columnHelper.accessor('delivery_date', {
+      header: '납기일',
+      cell: info => {
+        const date = info.getValue();
+        if (!date) return '-';
+        const dday = calculateDDay(date);
+        return (
+          <div className="flex items-center gap-2">
+            <span>{date}</span>
+            <Badge variant={dday.variant} className="text-xs">{dday.text}</Badge>
+          </div>
+        );
+      }
+    }),
+    columnHelper.accessor('status', {
+      header: '상태',
+      cell: info => {
+        const status = info.getValue();
+        const shippingStatus = info.row.original.shipping_status;
+        
+        let label = status;
+        let variant: any = 'default';
+        if (status === 'ORDERED' || status === 'PENDING') { label = '수주등록'; variant = 'primary'; }
+        else if (status === 'PRODUCTION') { label = '생산중'; variant = 'warning'; }
+        else if (status === 'INSPECTION') { label = '출하대기'; variant = 'success'; }
+        else if (status === 'DONE' || status === 'COMPLETED') { label = '완료'; variant = 'default'; }
+        
+        return (
+          <div className="flex items-center gap-1">
+            <Badge variant={variant}>{label}</Badge>
+            {shippingStatus === 'shipped' && <Badge variant="success">출하완료</Badge>}
+            {shippingStatus === 'partially_shipped' && <Badge variant="warning">부분출하</Badge>}
+          </div>
+        );
+      }
+    }),
+    columnHelper.display({
+      id: 'actions',
+      header: () => <div className="text-right w-full">관리</div>,
+      cell: info => (
+        <div className="text-right">
+          <Button variant="ghost" size="sm" onClick={(e) => {
+            e.stopPropagation();
+            navigate(`/orders/${info.row.original.id}`);
+          }}>
+            상세
+            <ArrowRight className="w-4 h-4 ml-1" />
+          </Button>
+        </div>
+      ),
+    })
+  ];
+
+  const table = useReactTable({
+    data: orders,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    manualPagination: true,
+    pageCount: totalPages,
   });
 
   return (
-    <div className="flex flex-col gap-6 animate-in fade-in h-full">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-text-primary">수주 관리</h1>
-          <p className="text-text-secondary mt-1">접수된 수주 내역을 확인하고 납기를 관리합니다.</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="primary">수주 등록</Button>
-        </div>
-      </div>
-
-      <div className="flex justify-between items-center">
-        <div className="flex space-x-1 bg-bg-surface p-1 rounded-lg border border-border-default">
-          {(['전체', '수주등록', '생산중', '출하대기'] as const).map(tab => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                activeTab === tab 
-                  ? 'bg-bg-elevated text-text-primary shadow-sm' 
-                  : 'text-text-secondary hover:text-text-primary hover:bg-bg-elevated/50'
-              }`}
+    <div className="flex flex-col h-full bg-bg-base animate-in fade-in">
+      {/* Header */}
+      <div className="p-6 pb-0">
+        <PageHeader
+          title="수주 관리"
+          actions={
+            <Button
+              variant="primary"
+              className="gap-2"
+              onClick={() => setIsCreateModalOpen(true)}
             >
-              {tab}
-            </button>
-          ))}
-        </div>
-      </div>
+              <Plus size={16} /> 신규 수주 등록
+            </Button>
+          }
+        />
 
-      <Card className="flex-1">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>수주 목록</CardTitle>
-          <div className="relative w-64">
+        {/* Status Tabs */}
+        <PageTabs
+          tabs={[
+            { id: '전체', label: '전체' },
+            { id: '수주등록', label: '수주등록' },
+            { id: '생산중', label: '생산중' },
+            { id: '출하대기', label: '출하대기' },
+            { id: '출하완료', label: '출하완료' },
+            { id: '완료', label: '완료' },
+          ]}
+          activeTab={activeTab}
+          onChange={(tabId) => {
+            setActiveTab(tabId);
+            setPage(1);
+          }}
+          rightContent={
+            <div className="text-xs text-text-secondary">
+              총 <span className="text-brand-400 font-bold">{totalCount}</span> 건의 수주
+            </div>
+          }
+        />
+
+        {/* Extended Filters & Search Bar */}
+        <FilterBar>
+          <div className="flex flex-wrap items-center justify-between gap-3 w-full bg-bg-surface p-3 rounded-lg border border-border-default">
+            <div className="flex flex-wrap items-center gap-3">
+            {/* Customer Filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-text-secondary whitespace-nowrap">거래처</span>
+              <select
+                value={clientId}
+                onChange={(e) => {
+                  setClientId(e.target.value);
+                  setPage(1);
+                }}
+                className="bg-bg-base border border-border-default text-text-primary rounded h-8 text-xs px-2 outline-none focus:border-brand-500 min-w-[130px]"
+              >
+                <option value="ALL">전체 거래처</option>
+                {clients.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Date Range Filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-text-secondary whitespace-nowrap">수주일</span>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  setPage(1);
+                }}
+                className="bg-bg-base border border-border-default text-text-primary rounded h-8 text-xs px-2 outline-none focus:border-brand-500"
+              />
+              <span className="text-text-secondary text-xs">~</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  setPage(1);
+                }}
+                className="bg-bg-base border border-border-default text-text-primary rounded h-8 text-xs px-2 outline-none focus:border-brand-500"
+              />
+            </div>
+
+            {/* Reset Button */}
+            {(searchTerm || activeTab !== '전체' || startDate || endDate || clientId !== 'ALL') && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={resetFilters}
+                className="text-xs text-text-secondary hover:text-status-danger h-8"
+              >
+                필터 초기화
+              </Button>
+            )}
+          </div>
+
+          {/* Search Box */}
+          <div className="w-72 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
-            <Input 
-              className="pl-9" 
-              placeholder="고객사 또는 프로젝트 검색..." 
+            <BaseInput 
+              className="pl-9 bg-bg-base text-xs" 
+              placeholder="PO 번호, 수주번호 검색..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setPage(1);
+              }}
             />
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
+          </div>
+        </FilterBar>
+      </div>
+
+      {/* Main Content Area */}
+      <div className="flex-1 p-6 pt-0 overflow-hidden flex flex-col">
+        <div className="bg-bg-surface border border-border-default rounded-lg overflow-hidden flex flex-col h-full shadow-sm">
+          <div className="overflow-auto flex-1 custom-scrollbar">
             <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-border-default text-text-secondary">
-                  <th className="py-3 px-4 font-medium">수주번호</th>
-                  <th className="py-3 px-4 font-medium">고객사</th>
-                  <th className="py-3 px-4 font-medium">프로젝트명</th>
-                  <th className="py-3 px-4 font-medium">수주금액</th>
-                  <th className="py-3 px-4 font-medium">납기일</th>
-                  <th className="py-3 px-4 font-medium">상태</th>
-                  <th className="py-3 px-4 font-medium text-right">관리</th>
-                </tr>
+              <thead className="bg-bg-elevated sticky top-0 z-10">
+                {table.getHeaderGroups().map(headerGroup => (
+                  <tr key={headerGroup.id}>
+                    {headerGroup.headers.map(header => (
+                      <th 
+                        key={header.id} 
+                        className="px-4 py-3 text-sm font-medium text-text-secondary border-b border-border-default hover:bg-bg-overlay transition-colors select-none"
+                        onClick={header.column.getCanSort() ? header.column.getToggleSortingHandler() : undefined}
+                        style={{ 
+                          width: header.column.getSize() !== 150 ? header.column.getSize() : undefined,
+                          cursor: header.column.getCanSort() ? 'pointer' : 'default'
+                        }}
+                      >
+                        <div className="flex items-center space-x-1">
+                          <span className={header.id === 'actions' ? 'w-full text-right' : ''}>
+                            {flexRender(header.column.columnDef.header, header.getContext())}
+                          </span>
+                          {header.column.getCanSort() && (
+                            {
+                              asc: <ArrowUpDown size={14} className="text-brand-500" />,
+                              desc: <ArrowUpDown size={14} className="text-brand-500 rotate-180" />,
+                            }[header.column.getIsSorted() as string] ?? (
+                              <ArrowUpDown size={14} className="text-text-secondary/30 opacity-0 group-hover:opacity-100" />
+                            )
+                          )}
+                        </div>
+                      </th>
+                    ))}
+                  </tr>
+                ))}
               </thead>
               <tbody>
-                {filteredOrders.map((order) => {
-                  const dday = calculateDDay(order.deliveryDate);
-                  return (
-                    <tr key={order.id} className="border-b border-border-default/50 hover:bg-bg-elevated/50 transition-colors">
-                      <td className="py-3 px-4 font-medium text-text-primary">{order.id}</td>
-                      <td className="py-3 px-4">{order.client}</td>
-                      <td className="py-3 px-4">{order.projectName}</td>
-                      <td className="py-3 px-4">{order.amount.toLocaleString()}원</td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2">
-                          <span>{order.deliveryDate}</span>
-                          <Badge variant={dday.variant} className="text-xs">{dday.text}</Badge>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <Badge variant="default">{order.status}</Badge>
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <Button variant="ghost" size="sm">
-                          상세
-                          <ArrowRight className="w-4 h-4 ml-1" />
-                        </Button>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {filteredOrders.length === 0 && (
+                {errorMsg ? (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-text-secondary">
-                      검색 결과가 없습니다.
+                    <td colSpan={columns.length} className="px-4 py-12 text-center text-danger font-medium">
+                      오류 발생: {errorMsg}
                     </td>
                   </tr>
+                ) : isLoading ? (
+                  <tr>
+                    <td colSpan={columns.length} className="px-4 py-12 text-center text-text-secondary">
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="w-4 h-4 border-2 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
+                        데이터를 불러오는 중...
+                      </div>
+                    </td>
+                  </tr>
+                ) : orders.length === 0 ? (
+                  <tr>
+                    <td colSpan={columns.length} className="px-4 py-12 text-center text-text-secondary">
+                      수주 내역이 없습니다.
+                    </td>
+                  </tr>
+                ) : (
+                  table.getRowModel().rows.map(row => (
+                    <tr 
+                      key={row.id} 
+                      onClick={() => navigate(`/orders/${row.original.id}`)}
+                      className="border-b border-border-default hover:bg-bg-elevated transition-colors cursor-pointer group"
+                    >
+                      {row.getVisibleCells().map(cell => (
+                        <td 
+                          key={cell.id} 
+                          className="px-4 py-3 text-sm text-text-secondary group-hover:text-text-primary"
+                          style={{ width: cell.column.getSize() !== 150 ? cell.column.getSize() : undefined }}
+                        >
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </td>
+                      ))}
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>
           </div>
-        </CardContent>
-      </Card>
+          
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-6 py-3 border-t border-border-default bg-bg-surface">
+              <div className="text-sm text-text-secondary">
+                총 {totalCount}건의 수주
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setPage(page - 1)}
+                  disabled={page <= 1}
+                >
+                  이전
+                </Button>
+                <div className="text-sm font-medium text-text-primary px-4 bg-bg-elevated py-1 rounded">
+                  {page} / {totalPages}
+                </div>
+                <Button 
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(page + 1)}
+                  disabled={page >= totalPages}
+                >
+                  다음
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <CreateOrderModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        clients={clients}
+        companyId={companyId}
+        onSuccess={(newOrderId) => {
+          navigate(`/orders/${newOrderId}`);
+        }}
+      />
     </div>
   );
 };

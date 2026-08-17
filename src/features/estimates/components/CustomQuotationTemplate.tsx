@@ -69,6 +69,9 @@ export const CustomQuotationTemplate = React.forwardRef<HTMLDivElement, CustomQu
   }, [companyInfo]);
 
   const currency = estimate.currency || 'KRW';
+  const isForeign = currency !== 'KRW';
+  const fractionOpts = isForeign ? { maximumFractionDigits: 2, minimumFractionDigits: 2 } : { maximumFractionDigits: 0 };
+  
   const symbol = currency === 'KRW' ? '₩' : currency === 'USD' ? '$' : currency;
   const calculatedTotalAmount = items.reduce((sum, item) => sum + (item.supply_price || 0), 0);
   const totalAmount = estimate.total_amount || calculatedTotalAmount;
@@ -185,7 +188,7 @@ export const CustomQuotationTemplate = React.forwardRef<HTMLDivElement, CustomQu
                 </span>
               )}
               <span className="font-bold text-blue-700" style={{ fontSize: b.fontSize ? b.fontSize * 2 : 24 }}>
-                ({symbol} {totalAmount.toLocaleString()})
+                ({symbol} {totalAmount.toLocaleString(undefined, fractionOpts)})
               </span>
               {b.showVatNote && <span className="text-gray-600 mt-1" style={{ fontSize: b.fontSize || 12 }}>(VAT 별도)</span>}
             </div>
@@ -290,10 +293,12 @@ export const CustomQuotationTemplate = React.forwardRef<HTMLDivElement, CustomQu
                     let val: React.ReactNode = '';
                     if (col === 'No.') val = globalIndex;
                     else if (col === '품명') val = item.part_name;
-                    else if (col === '규격') val = `${item.spec_w || 0}x${item.spec_d || 0}x${item.spec_h || 0}`;
+                    else if (col === '품번') val = item.part_no;
+                    else if (col === '규격') val = item.shape === 'round' ? `⌀${item.spec_w} x ${item.spec_d}L` : `${item.spec_w || 0}x${item.spec_d || 0}x${item.spec_h || 0}`;
+                    else if (col === '재질') val = item.original_material_name || item.material_name || '-';
                     else if (col === '수량') val = item.qty;
-                    else if (col === '단가') val = (item.unit_price || 0).toLocaleString();
-                    else if (col === '공급가액') val = (item.supply_price || 0).toLocaleString();
+                    else if (col === '단가') val = (item.unit_price || 0).toLocaleString(undefined, fractionOpts);
+                    else if (col === '공급가액') val = (item.supply_price || 0).toLocaleString(undefined, fractionOpts);
                     else if (col === '비고') val = item.note;
                     return <td key={i} className={`border border-gray-300 p-1.5 ${['수량', '단가', '공급가액'].includes(col) ? 'text-right' : 'text-center'}`}>{val}</td>;
                   })}

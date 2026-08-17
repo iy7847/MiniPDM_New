@@ -1,7 +1,7 @@
 import React from 'react';
 import { Plus, Wand2 } from 'lucide-react';
 import { BaseCombobox } from '../../../design-system/BaseCombobox';
-import { NumberInput } from '../../../design-system/NumberInput';
+import { NumberInput, CurrencyToggle } from '../../../design-system';
 import type { Estimate } from '../types';
 import type { Client } from '../../clients/types';
 
@@ -14,6 +14,7 @@ interface EstimateBasicInfoProps {
   showForeign: boolean;
   setShowForeign: (show: boolean) => void;
   onOpenClientModal: () => void;
+  isLocked: boolean;
 }
 
 export const EstimateBasicInfo: React.FC<EstimateBasicInfoProps> = ({
@@ -24,7 +25,8 @@ export const EstimateBasicInfo: React.FC<EstimateBasicInfoProps> = ({
   handleGenerateProjectName,
   showForeign,
   setShowForeign,
-  onOpenClientModal
+  onOpenClientModal,
+  isLocked
 }) => {
   const clientOptions = clients.map(c => ({ value: c.id, label: c.name }));
 
@@ -36,12 +38,13 @@ export const EstimateBasicInfo: React.FC<EstimateBasicInfoProps> = ({
             <label className="text-xs font-medium text-text-secondary whitespace-nowrap">프로젝트</label>
             <div className="flex-1 flex items-center gap-1">
               <input 
-                className="w-full bg-bg-surface border border-border-default rounded h-8 text-sm px-3 outline-none focus:border-brand-500 text-text-primary"
+                className="w-full bg-bg-surface border border-border-default rounded h-8 text-sm px-3 outline-none focus:border-brand-500 text-text-primary disabled:opacity-50 disabled:bg-bg-base"
                 placeholder="프로젝트명" 
                 value={estimate?.project_name || ''} 
                 onChange={(e) => setEstimate({ ...estimate, project_name: e.target.value })} 
+                disabled={isLocked}
               />
-              <button onClick={handleGenerateProjectName} className="text-brand-500 hover:text-brand-400 p-1.5 bg-brand-500/10 hover:bg-brand-500/20 rounded transition-colors" title="자동 생성"><Wand2 size={14}/></button>
+              <button onClick={handleGenerateProjectName} className="text-brand-500 hover:text-brand-400 p-1.5 bg-brand-500/10 hover:bg-brand-500/20 rounded transition-colors disabled:opacity-50" title="자동 생성" disabled={isLocked}><Wand2 size={14}/></button>
             </div>
           </div>
           
@@ -55,10 +58,11 @@ export const EstimateBasicInfo: React.FC<EstimateBasicInfoProps> = ({
                   onChange={handleClientChange} 
                   options={clientOptions}
                   placeholder="선택..." 
-                  inputClassName="w-full px-3 py-1.5 h-8 text-sm rounded border border-border-default bg-bg-surface text-text-primary focus:outline-none focus:border-brand-500"
+                  inputClassName="w-full px-3 py-1.5 h-8 text-sm rounded border border-border-default bg-bg-surface text-text-primary focus:outline-none focus:border-brand-500 disabled:opacity-50 disabled:bg-bg-base"
+                  disabled={isLocked}
                 />
               </div>
-              <button onClick={onOpenClientModal} className="text-brand-500 hover:text-brand-400 p-1.5 bg-brand-500/10 hover:bg-brand-500/20 rounded transition-colors" title="신규 등록"><Plus size={14}/></button>
+              <button onClick={onOpenClientModal} className="text-brand-500 hover:text-brand-400 p-1.5 bg-brand-500/10 hover:bg-brand-500/20 rounded transition-colors disabled:opacity-50" title="신규 등록" disabled={isLocked}><Plus size={14}/></button>
             </div>
           </div>
 
@@ -67,9 +71,10 @@ export const EstimateBasicInfo: React.FC<EstimateBasicInfoProps> = ({
             <div className="flex items-center gap-2">
               <label className="text-xs font-medium text-text-secondary whitespace-nowrap">통화</label>
               <select
-                className="bg-bg-surface border border-border-default text-text-primary rounded h-8 text-sm px-2 outline-none focus:border-brand-500 min-w-[80px]"
+                className="bg-bg-surface border border-border-default text-text-primary rounded h-8 text-sm px-2 outline-none focus:border-brand-500 min-w-[80px] disabled:opacity-50 disabled:bg-bg-base"
                 value={estimate?.currency || 'KRW'}
                 onChange={(e) => setEstimate({ ...estimate, currency: e.target.value })}
+                disabled={isLocked}
               >
                 <option value="KRW">KRW</option>
                 <option value="USD">USD</option>
@@ -84,25 +89,26 @@ export const EstimateBasicInfo: React.FC<EstimateBasicInfoProps> = ({
                   value={estimate?.base_exchange_rate || 1}
                   onChange={(val) => setEstimate({ ...estimate, base_exchange_rate: val })}
                   className="!w-[100px]"
-                  inputClassName="!h-8 !py-1.5 !px-2 !text-sm !bg-bg-surface"
+                  inputClassName="!h-8 !py-1.5 !px-2 !text-sm !bg-bg-surface disabled:opacity-50 disabled:bg-bg-base"
+                  disabled={isLocked}
                 />
               </div>
               {estimate?.currency !== 'KRW' && (
-                <button 
-                  onClick={() => setShowForeign(!showForeign)}
-                  className={`text-[11px] px-2 py-1 rounded transition-colors border ${showForeign ? 'bg-brand-500/20 border-brand-500 text-brand-400 font-bold' : 'bg-bg-surface border-border-default text-text-secondary'}`}
-                >
-                  외화 적용
-                </button>
+                <CurrencyToggle 
+                  isForeignMode={showForeign} 
+                  onToggle={() => setShowForeign(!showForeign)} 
+                  currency={estimate?.currency} 
+                />
               )}
             </div>
             <div className="flex items-center gap-2">
               <label className="text-xs font-medium text-text-secondary whitespace-nowrap">작성일</label>
               <input 
                 type="date"
-                className="bg-bg-surface border border-border-default rounded h-8 text-sm px-2 outline-none focus:border-brand-500 text-text-primary"
+                className="bg-bg-surface border border-border-default rounded h-8 text-sm px-2 outline-none focus:border-brand-500 text-text-primary disabled:opacity-50 disabled:bg-bg-base"
                 value={estimate?.created_at ? estimate.created_at.substring(0, 10) : ''} 
                 onChange={(e) => setEstimate({ ...estimate, created_at: e.target.value })} 
+                disabled={isLocked}
               />
             </div>
           </div>

@@ -65,6 +65,9 @@ export const QuotationTemplate = React.forwardRef<HTMLDivElement, QuotationTempl
   }, [companyInfo]);
 
   const currency = estimate.currency || 'KRW';
+  const isForeign = currency !== 'KRW';
+  const fractionOpts = isForeign ? { maximumFractionDigits: 2, minimumFractionDigits: 2 } : { maximumFractionDigits: 0 };
+  
   const symbol = currency === 'KRW' ? '₩' : currency === 'USD' ? '$' : currency;
   const totalAmount = estimate.total_amount || 0;
   const today = new Date().toISOString().split('T')[0];
@@ -141,7 +144,7 @@ export const QuotationTemplate = React.forwardRef<HTMLDivElement, QuotationTempl
         <div className="flex justify-between items-center border-t-2 border-b-2 border-brand-500 bg-brand-500/10 p-3 print:border-blue-900 print:bg-blue-50">
           <span className="font-bold text-lg">합 계 금 액 (Total Amount)</span>
           <span className="font-bold text-xl">
-            {symbol} {totalAmount.toLocaleString()}
+            {symbol} {totalAmount.toLocaleString(undefined, fractionOpts)}
             <span className="text-xs font-normal ml-1 text-gray-600 print:text-black">({currency === 'KRW' ? 'VAT 별도' : 'VAT Excluded'})</span>
           </span>
         </div>
@@ -172,8 +175,8 @@ export const QuotationTemplate = React.forwardRef<HTMLDivElement, QuotationTempl
                 </td>
                 <td className="border border-gray-300 text-center px-1 print:border-gray-300">{item.original_material_name || '-'}</td>
                 <td className="border border-gray-300 text-center print:border-gray-300">{item.qty}</td>
-                <td className="border border-gray-300 text-right px-2 print:border-gray-300">{item.unit_price.toLocaleString()}</td>
-                <td className="border border-gray-300 text-right px-2 font-bold print:border-gray-300">{(item.supply_price || 0).toLocaleString()}</td>
+                <td className="border border-gray-300 text-right px-2 print:border-gray-300">{item.unit_price.toLocaleString(undefined, fractionOpts)}</td>
+                <td className="border border-gray-300 text-right px-2 font-bold print:border-gray-300">{(item.supply_price || 0).toLocaleString(undefined, fractionOpts)}</td>
               </tr>
             ))}
           </tbody>

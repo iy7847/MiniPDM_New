@@ -32,8 +32,9 @@ export const EstimateDetailPage: React.FC = () => {
   const isNew = id === 'new';
   const isLocked = estimate?.status === 'SENT' || estimate?.status === 'ORDERED';
 
-  const subTotal = items.reduce((sum, item) => sum + (item.supply_price || 0), 0);
-  const totalAmount = isForeignMode ? subTotal / (estimate?.base_exchange_rate || 1) : subTotal;
+  const totalAmount = isForeignMode && (estimate?.base_exchange_rate || 0) > 0
+    ? items.reduce((sum, item) => sum + (Math.ceil(((item.supply_price || 0) / estimate.base_exchange_rate!) * 100) / 100), 0)
+    : items.reduce((sum, item) => sum + (item.supply_price || 0), 0);
 
   React.useEffect(() => {
     async function init() {
@@ -78,7 +79,9 @@ export const EstimateDetailPage: React.FC = () => {
     handleAddItem,
     handleDragOver,
     handleDragLeave,
-    handleDrop
+    handleDrop,
+    handleRemoveSingleFile,
+    handleRemoveMultipleFiles
   } = useEstimatePageActions({
     id,
     isNew,
@@ -107,6 +110,93 @@ export const EstimateDetailPage: React.FC = () => {
       currency: newCurrency,
       base_exchange_rate: newRate
     });
+  };
+
+  const handleConvertOrder = async (selectedItemsToOrder: any[]) => {
+    if (!estimate?.id || !companyId || !user?.id) {
+      alert('필수 정보가 누락되었습니다.');
+      return;
+    }
+    
+    try {
+      const selectedItemIds = selectedItemsToOrder.map(item => item.id);
+      const totalAmount = selectedItemsToOrder.reduce((sum, item) => {
+        // 모달에서 수량을 바꿨을 수도 있으므로 (order_qty || qty) * unit_price 사용
+        const finalQty = item.order_qty || item.qty || 1;
+        const finalPrice = finalQty * (item.unit_price || 0);
+        return sum + finalPrice;
+      }, 0);
+      
+      // 1. RPC 호출 (반환값: JSONB)
+      const { data: responseData, error } = await supabase.rpc('convert_estimate_to_order', {
+        p_estimate_id: estimate.id,
+        p_company_id: companyId,
+        p_user_id: user.id,
+        p_selected_item_ids: selectedItemIds,
+        p_total_amount: totalAmount
+      });
+
+      if (error) throw error;
+
+      // 2. 파일 복사 및 DB 등록 처리
+      // responseData 형태: { order_id, po_no, order_number, item_mappings: { [estimate_item_id]: order_item_id } }
+      const poNo = responseData?.po_no || 'UNKNOWN_PO';
+      const itemMappings = responseData?.item_mappings || {};
+      const newFilesToInsert: any[] = [];
+
+      for (const item of selectedItemsToOrder) {
+        if (!item.files || item.files.length === 0) continue;
+        
+        const orderItemId = itemMappings[item.id];
+        if (!orderItemId) continue;
+
+        for (const file of item.files) {
+          if (!file.file_path) continue;
+
+          // 대상 경로: [현재 연도]/Orders/[PO번호]/[품번 또는 품명]
+          const currentYear = new Date().getFullYear().toString();
+          const targetFolderName = item.part_no || item.part_name || 'UNKNOWN';
+          const targetPath = `${currentYear}/Orders/${poNo}/${targetFolderName}`;
+
+          // window.fileSystem API로 물리적 복사 실행
+          // (일렉트론 프리로드 스크립트에 saveFile이 구현되어 있다고 가정, 구버전 useFileHandler와 동일한 방식)
+          if (window.fileSystem && window.fileSystem.saveFile) {
+            try {
+              const res = await window.fileSystem.saveFile(file.file_path, companyId, targetPath);
+              if (res.success && res.filePath) {
+                newFilesToInsert.push({
+                  order_item_id: orderItemId,
+                  file_name: file.file_name,
+                  file_path: res.filePath,
+                  file_type: file.file_type || 'DOCUMENT',
+                  file_size: file.file_size || 0
+                });
+              } else {
+                console.warn(`파일 복사 실패: ${file.file_name}`, res.error);
+              }
+            } catch (fsErr) {
+              console.error(`파일 복사 중 에러: ${file.file_name}`, fsErr);
+            }
+          }
+        }
+      }
+
+      // 3. 복사된 파일 DB 등록
+      if (newFilesToInsert.length > 0) {
+        const { error: insertError } = await supabase.from('files').insert(newFilesToInsert);
+        if (insertError) {
+          console.error('파일 DB 등록 에러:', insertError);
+          // 실패하더라도 수주 자체는 완료되었으므로 알림만 줌
+          alert('수주는 생성되었으나, 일부 도면 파일의 DB 등록에 실패했습니다.');
+        }
+      }
+      
+      alert('수주 확정이 성공적으로 완료되었습니다! 수주 관리 메뉴에서 확인하세요.');
+      reload();
+    } catch (err: any) {
+      console.error(err);
+      alert(`수주 전환 중 오류가 발생했습니다:\n${err.message || err.details || JSON.stringify(err)}`);
+    }
   };
 
   const selectedRows = items.filter((item: any) => item.selected).map(item => item.id!);
@@ -158,6 +248,7 @@ export const EstimateDetailPage: React.FC = () => {
           showForeign={showForeign}
           setShowForeign={setShowForeign}
           onOpenClientModal={() => modalsRef.current?.openClientModal()}
+          isLocked={isLocked}
         />
       </div>
 
@@ -166,9 +257,9 @@ export const EstimateDetailPage: React.FC = () => {
           <Card className="flex-1 flex flex-col p-6 relative overflow-hidden">
             <div className="flex justify-between items-center mb-4 min-h-[40px]">
               <div className="flex items-center gap-3">
-                <h3 className="text-lg font-bold text-text-primary">품목 리스트</h3>
+                <h3 className="text-lg font-bold text-text-primary">견적 품목 상세 내역</h3>
                 <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-bg-elevated border border-border-default text-[11px] text-text-secondary shadow-sm">
-                  💡 화면 어디든 파일을 드롭하여 추가하세요
+                  💡 파일을 드롭하여 추가하세요
                 </span>
               </div>
 
@@ -225,6 +316,8 @@ export const EstimateDetailPage: React.FC = () => {
                       setItems([...items, newItem]);
                   }
               }}
+              onRemoveSingleFile={handleRemoveSingleFile}
+              onRemoveMultipleFiles={handleRemoveMultipleFiles}
               isReadOnly={isLocked}
               companyInfo={metadata?.companyInfo}
               metadata={metadata}
@@ -248,14 +341,17 @@ export const EstimateDetailPage: React.FC = () => {
         companyId={companyId}
         metadata={metadata}
         isLocked={isLocked}
+        showForeign={isForeignMode}
         onReload={reload}
         onAddItem={(newItem) => setItems([...items, newItem])}
         onAddItems={(newItems) => setItems([...items, ...newItems])}
+        onUpdateItem={(updatedItem) => setItems(items.map((it: any) => it.id === updatedItem.id ? updatedItem : it))}
         onSaveClient={async (formData) => { if (companyId) await saveClient(companyId, formData); }}
         onMultiDuplicate={handleMultiDuplicate}
         onExportExcel={() => {
             console.log("Excel Export Triggered");
         }}
+        onConvertOrder={handleConvertOrder}
       />
     </div>
   );

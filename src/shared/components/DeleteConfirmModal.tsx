@@ -9,6 +9,7 @@ interface DeleteConfirmModalProps {
   onClose: () => void;
   confirmText?: string;
   isDanger?: boolean;
+  icon?: React.ReactNode;
 }
 
 export function DeleteConfirmModal({
@@ -18,7 +19,8 @@ export function DeleteConfirmModal({
   onConfirm,
   onClose,
   confirmText = '삭제',
-  isDanger = true
+  isDanger = true,
+  icon
 }: DeleteConfirmModalProps) {
   if (!isOpen) return null;
 
@@ -55,7 +57,7 @@ export function DeleteConfirmModal({
               isDanger ? 'bg-red-600 hover:bg-red-700' : 'bg-yellow-600 hover:bg-yellow-700'
             }`}
           >
-            <Trash2 className="w-4 h-4" />
+            {icon || <Trash2 className="w-4 h-4" />}
             <span>{confirmText}</span>
           </button>
         </div>

@@ -49,7 +49,7 @@ export const ItemFinalCostForm: React.FC<ItemFinalCostFormProps> = ({
         className="flex justify-between items-center cursor-pointer border-b border-border-default pb-2 select-none hover:bg-bg-elevated -mx-2 px-2 rounded-md transition-colors"
         onClick={() => setIsOpen(!isOpen)}
       >
-        <h3 className="text-lg font-bold text-text-primary">3. 수량 및 최종 단가</h3>
+        <h3 className="text-lg font-bold text-text-primary">3. 수량 및 추가 설정</h3>
         {isOpen ? <ChevronDown size={20} className="text-text-secondary" /> : <ChevronRight size={20} className="text-text-secondary" />}
       </div>
       
@@ -113,23 +113,6 @@ export const ItemFinalCostForm: React.FC<ItemFinalCostFormProps> = ({
             )}
           </div>
         </div>
-      </div>
-
-      <div className="mt-6 bg-bg-elevated p-6 rounded-xl border border-brand-500/30">
-        <NumberInput
-          label="최종 결정 단가 (₩/ea)"
-          value={itemForm.unit_price}
-          onChange={v => {
-            setItemForm({ ...itemForm, unit_price: v });
-            setIsManualPrice(true);
-          }}
-          inputClassName="text-brand-500 font-extrabold text-2xl h-14 bg-bg-base"
-        />
-        {calcResult.results && calcResult.results[0] && (
-          <p className="text-sm text-text-secondary text-right mt-2">
-            (할인율 {calcResult.results[0].discount_rate}% 반영 계산 원가: ₩ {calcResult.results[0].unit_price.toLocaleString()})
-          </p>
-        )}
       </div>
         </div>
       )}

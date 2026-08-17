@@ -11,8 +11,10 @@
 
 | 파일 | 위치 | 설명 |
 |------|------|------|
+| **MEMORY.md** | `D:\06_Coding\AntiGravity\MiniPDM_New\.agents\MEMORY.md` | **[필수] 에이전트 자율 기억 저장소 (오답 노트 및 스키마 특이사항 기록)** |
 | **HANDOFF.md** | `D:\06_Coding\AntiGravity\MiniPDM_New\HANDOFF.md` | 이전 세션 작업 완료 내역 및 다음 세션 진행 목표 (인수인계서) |
 | **DIRECTIVE.md** | `D:\06_Coding\AntiGravity\MiniPDM_New\DIRECTIVE.md` | 전체 재구성 지침서 (디자인 시스템, 아키텍처, 화면 명세) |
+| **MINI_MES_PLAN.md** | `D:\06_Coding\AntiGravity\MiniPDM_New\docs\MINI_MES_PLAN.md` | **[필수] Phase 4 (수주/생산) Mini MES 아키텍처 및 구현 강제 지침서** |
 | **DESIGN.md** | `D:\06_Coding\AntiGravity\MiniPDM_New\DESIGN.md` | 디자인 분석 & v2.0 제안서 (컬러, 컴포넌트 Before/After, 구현 우선순위) |
 | **기존 앱 코드** | `D:\06_Coding\AntiGravity\MiniPDM\src\` | 기능 참조용 기존 소스코드 |
 | **Scales.md** | `D:\06_Coding\AntiGravity\MiniPDM\Scales.md` | 중량/비용 계산 공식 (변경 불가) |
@@ -123,6 +125,7 @@ src/
 3. **DB 무결성** — 스키마 변경 시 `supabase/migrations/`에 SQL 파일 생성
 4. **기존 기능 보존** — 기존 앱의 모든 기능을 v2.0에서 반드시 유지
 5. **디자인 시스템 준수** — `DIRECTIVE.md` 3장의 디자인 토큰을 항상 참조
+6. **자율 메모장 유지** — 작업 중 파악한 특이사항(예: GUI 스키마 컬럼)은 즉시 `.agents/MEMORY.md`에 기록하고 매 작업 시 참조할 것
 
 ---
 
@@ -195,6 +198,12 @@ src/
 
 ---
 
-## 🚫 금지 사항 (명시적 승인 필수)
+## 🚫 금지 사항 및 강제 규칙 (명시적 승인 필수)
 
 - **GitHub 관련 명령어 사용 금지**: 사용자의 명시적인 승인 없이는 `git push`, `git commit`, `git add` 등 깃허브(GitHub)와 관련된 어떠한 터미널 명령어도 임의로 실행해서는 안 됩니다.
+- **🚨 [절대 금지] 터미널(PowerShell 등)을 통한 시스템 탐색 및 상태 조회 전면 금지**: 
+  1. `findstr`, `dir`, `cat`, `Get-Content` 등 터미널 기본 명령어를 통한 파일 검색/읽기를 절대 금지합니다. 코드를 찾거나 파일 내용을 확인할 때는 **반드시 내장된 전용 초고속 도구(`grep_search`, `list_dir`, `view_file`)만을 사용**해야 합니다.
+  2. 스크립트 실행 허용의 예외(`npm run dev/build` 등)를 핑계로 삼아, **DB 스키마 조회(`npm run db:pull`), 파일 상태 점검, 임시 쿼리 코드 실행(`node temp.js`) 등 "조사 및 확인"을 목적으로 하는 어떠한 우회 스크립트 실행도 절대 금지**합니다. 
+  3. 구조나 상태 조사는 무조건 **제공된 내장 도구**와 **사전 정의된 문서(DB_SCHEMA.md 등)**에만 100% 의존하십시오. 이를 어길 시 작업 속도 저하를 유발하는 중대한 위반으로 간주합니다.
+- **[강제] Mini MES (Phase 4) 개발 시 절대 규칙**: 수주(Order) 및 생산(Production) 관련 백엔드/프론트엔드 기능을 개발할 때는 **반드시 `docs/MINI_MES_PLAN.md`를 100% 숙지**하고, 그 안의 DB 마이그레이션 계획 및 커스텀 훅 설계에 맞춰야 합니다. 특히 첫 번째 작업은 무조건 **0단계. 수주 확정 로직(Order Conversion RPC)**부터 시작하세요. 이 규칙을 임의로 지우거나 무시해서는 안 됩니다.
+- **🚨 [필수 행동] 코드 수정 전 사이드 이펙트(Side Effect) 선행 탐색 의무화**: 단편적인 파일 하나만 보고 즉흥적으로 코드를 수정하는 행위를 엄격히 금지합니다. 특정 변수, 함수, 컬럼을 수정하거나 추가하기 전에는 **반드시 `grep_search` 도구를 활용하여 프론트엔드(`types.ts`, UI)와 백엔드(DB 스키마, RPC) 간의 연결 고리를 100% 탐색**하세요. 한쪽 코드 수정으로 인해 연결된 다른 쪽에 예기치 않은 버그가 발생하지 않도록, 전체 아키텍처 관점에서 구조적 정합성을 완벽히 검증한 뒤에만 수정을 진행해야 합니다.

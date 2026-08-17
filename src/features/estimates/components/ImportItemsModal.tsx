@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Copy, RefreshCw, UploadCloud } from 'lucide-react';
 import { Button } from '../../../design-system/Button';
 import type { EstimateItem } from '../types';
+import { createInitialItemForm } from '../types';
 
 interface ImportedItem {
   part_name: string;
@@ -20,9 +21,10 @@ interface ImportItemsModalProps {
   onClose: () => void;
   onConfirm: (items: Partial<EstimateItem>[]) => void;
   initialRawRows?: string[][];
+  companyInfo?: any;
 }
 
-export function ImportItemsModal({ isOpen, onClose, onConfirm, initialRawRows }: ImportItemsModalProps) {
+export function ImportItemsModal({ isOpen, onClose, onConfirm, initialRawRows, companyInfo }: ImportItemsModalProps) {
   const [previewItems, setPreviewItems] = useState<ImportedItem[]>([]);
   const [rawRows, setRawRows] = useState<string[][]>([]);
   const [columnMapping, setColumnMapping] = useState<Record<number, string>>({});
@@ -134,6 +136,8 @@ export function ImportItemsModal({ isOpen, onClose, onConfirm, initialRawRows }:
 
   const handleConfirm = () => {
     const convertedItems: Partial<EstimateItem>[] = previewItems.map(item => ({
+      ...createInitialItemForm(companyInfo),
+      id: crypto.randomUUID(),
       part_name: item.part_name,
       part_no: item.part_no,
       qty: item.qty,

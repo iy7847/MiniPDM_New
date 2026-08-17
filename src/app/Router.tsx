@@ -8,13 +8,16 @@ import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { EstimatesPage } from '../features/estimates/EstimatesPage';
 import { EstimateDetailPage } from '../features/estimates/EstimateDetailPage';
 import { MaterialsPage } from '../features/materials/MaterialsPage';
-import { WorkTrackingPage } from '../features/production/WorkTrackingPage';
+import { ShopFloorPage } from '../features/production/pages/ShopFloorPage';
+import { ProductionListPage } from '../features/production/pages/ProductionListPage';
 import { OutsourcePage } from '../features/outsource/OutsourcePage';
+import { ReceivingPage } from '../features/receiving/ReceivingPage';
 import { SharedOrderPage } from '../features/outsource/SharedOrderPage';
 import { ClientsPage } from '../features/clients/ClientsPage';
 import { ClientDetailPage } from '../features/clients/ClientDetailPage';
 import { SettingsPage } from '../features/settings/SettingsPage';
 import { OrdersPage } from '../features/orders/OrdersPage';
+import { OrderDetailPage } from '../features/orders/OrderDetailPage';
 import { ShippingPage } from '../features/shipping/ShippingPage';
 import { AnalyticsPage } from '../features/analytics/AnalyticsPage';
 import { OnboardingPage } from '../features/onboarding/OnboardingPage';
@@ -158,11 +161,33 @@ const router = createHashRouter([
       },
       {
         path: 'orders',
-        element: <OrdersPage />,
+        children: [
+          {
+            index: true,
+            element: <OrdersPage />,
+          },
+          {
+            path: ':id',
+            element: <OrderDetailPage />,
+          }
+        ]
       },
       {
         path: 'production',
-        element: <WorkTrackingPage />,
+        children: [
+          {
+            index: true,
+            element: <Navigate to="list" replace />,
+          },
+          {
+            path: 'list',
+            element: <ProductionListPage />,
+          },
+          {
+            path: 'shopfloor',
+            element: <ShopFloorPage />,
+          }
+        ]
       },
       {
         path: 'shipping',
@@ -175,6 +200,10 @@ const router = createHashRouter([
       {
         path: 'outsource',
         element: <OutsourcePage />,
+      },
+      {
+        path: 'receiving',
+        element: <ReceivingPage />,
       },
       {
         path: 'clients',

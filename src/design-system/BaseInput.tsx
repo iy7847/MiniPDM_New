@@ -5,10 +5,11 @@ export interface BaseInputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
   inputClassName?: string;
+  leftIcon?: React.ReactNode;
 }
 
 export const BaseInput = forwardRef<HTMLInputElement, BaseInputProps>(
-  ({ label, error, className = '', inputClassName = '', id, ...props }, ref) => {
+  ({ label, error, className = '', inputClassName = '', id, leftIcon, ...props }, ref) => {
     const generatedId = useId();
     const inputId = id || generatedId;
 
@@ -19,20 +20,29 @@ export const BaseInput = forwardRef<HTMLInputElement, BaseInputProps>(
             {label}
           </label>
         )}
-        <input
-          id={inputId}
-          ref={ref}
-          className={`
-            w-full px-4 py-2.5 bg-bg-elevated border rounded-lg text-text-primary text-sm font-medium
-            focus:outline-none focus:ring-[3px] focus:ring-brand-bg focus:border-brand-500
-            transition-all duration-200 shadow-sm
-            disabled:opacity-50 disabled:cursor-not-allowed
-            placeholder:text-text-muted
-            ${error ? 'border-danger focus:ring-danger-bg focus:border-danger' : 'border-border-default hover:border-border-strong'}
-            ${inputClassName}
-          `}
-          {...props}
-        />
+        <div className="relative">
+          {leftIcon && (
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center justify-center text-text-secondary pointer-events-none">
+              {leftIcon}
+            </div>
+          )}
+          <input
+            id={inputId}
+            ref={ref}
+            className={`
+              w-full px-4 py-2.5 bg-bg-elevated border rounded-lg text-text-primary text-sm font-medium
+              focus:outline-none focus:ring-[3px] focus:ring-brand-bg focus:border-brand-500
+              transition-all duration-200 shadow-sm
+              disabled:opacity-50 disabled:cursor-not-allowed
+              placeholder:text-text-muted
+              ${error ? 'border-danger focus:ring-danger-bg focus:border-danger' : 'border-border-default hover:border-border-strong'}
+              ${leftIcon ? 'pl-10' : ''}
+              ${inputClassName}
+            `}
+            {...props}
+            value={props.value === null ? '' : props.value}
+          />
+        </div>
         {error && (
           <p className="flex items-center gap-1 text-xs text-danger mt-0.5">
             <AlertCircle size={14} />

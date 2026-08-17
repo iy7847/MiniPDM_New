@@ -22,19 +22,26 @@ const MENU_GROUPS = [
     ]
   },
   {
-    title: '업무 현황',
+    title: '영업 관리',
     items: [
       { path: '/estimates', label: '견적 관리', icon: FileText },
       { path: '/orders', label: '수주 관리', icon: ShoppingCart },
-      { path: '/production', label: '생산 현황', icon: Hammer },
       { path: '/shipping', label: '출하 관리', icon: Truck },
+    ]
+  },
+  {
+    title: '생산 관리',
+    items: [
+      { path: '/production/list', label: '생산 관리', icon: Hammer },
+      { path: '/production/shopfloor', label: '현장 실적 등록', icon: Hammer },
+      { path: '/outsource', label: '외주/구매 관리', icon: Users },
+      { path: '/receiving', label: '입고 처리', icon: Package },
     ]
   },
   {
     title: '기준 정보',
     items: [
       { path: '/materials', label: '단가 관리', icon: Package },
-      { path: '/outsource', label: '외주 관리', icon: Users },
       { path: '/clients', label: '거래처 관리', icon: Users },
     ]
   },
@@ -59,7 +66,8 @@ export const Sidebar: React.FC = () => {
     }
     return {
       '현황판': true,
-      '업무 현황': true,
+      '영업 관리': true,
+      '생산 관리': true,
       '기준 정보': true,
       '시스템': true
     };

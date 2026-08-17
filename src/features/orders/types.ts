@@ -5,6 +5,11 @@ export interface Order {
   company_id: string;
   client_id: string;
   estimate_id?: string | null;
+  estimates?: {
+    id: string;
+    base_exchange_rate: number;
+    currency: string;
+  };
 
   po_no: string;
   order_date: string;
@@ -27,14 +32,18 @@ export interface OrderItem {
   id: string;
   order_id: string;
   estimate_item_id?: string | null;
+  client_po_no?: string | null;
 
   part_name: string;
   part_no: string;
   spec: string;
 
   material_name: string;
+  original_material_name?: string | null;
+  material_id?: string | null;
 
   qty: number;
+  production_qty?: number;
   unit_price: number;
   supply_price: number;
 
@@ -58,6 +67,9 @@ export interface OrderItem {
 
   post_processing_name?: string;
 
+  supply_type?: 'INHOUSE' | 'OUTSOURCE' | 'PURCHASE';
+  material_supply_type?: 'ORDER' | 'STOCK' | 'PROVIDED' | 'NONE';
+  use_stock?: boolean;
   production_type?: 'INHOUSE' | 'OUTSOURCE';
   production_note?: string;
   completed_at?: string;

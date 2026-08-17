@@ -8,8 +8,9 @@ export function usePdfOcr(
   pageNumber: number,
   RENDER_WIDTH: number,
   setIsProcessing: (b: boolean) => void,
-  setOcrResults: React.Dispatch<React.SetStateAction<OcrResult[]>>,
-  ocrMode: 'part_no' | 'part_name' | 'material'
+  setOcrResults?: React.Dispatch<React.SetStateAction<OcrResult[]>>,
+  ocrMode?: 'part_no' | 'part_name' | 'material',
+  onOcrComplete?: (text: string) => void
 ) {
   const [masks, setMasks] = useState<Mask[]>([]);
   const [isMaskMode, setIsMaskMode] = useState(false);
@@ -63,19 +64,28 @@ export function usePdfOcr(
         const { data: { text } } = await Tesseract.recognize(dataUrl, 'eng+kor');
         const cleanText = text.replace(/\n/g, ' ').trim();
 
-        setOcrResults(prev => {
-          const newResults = [...prev];
-          const currentItem = newResults[pageNumber - 1];
+        // 1. 단일 콜백이 제공된 경우 (단일 뷰어용)
+        if (onOcrComplete) {
+          onOcrComplete(cleanText);
+        }
 
-          if (ocrMode === 'part_no') currentItem.part_no = cleanText;
-          if (ocrMode === 'part_name') currentItem.part_name = cleanText;
-          if (ocrMode === 'material') currentItem.material = cleanText;
+        // 2. 다중 리스트 업데이트용 (기존 동작)
+        if (setOcrResults && ocrMode) {
+          setOcrResults(prev => {
+            const newResults = [...prev];
+            const currentItem = newResults[pageNumber - 1];
+            if (!currentItem) return newResults;
 
-          currentItem.thumbnail = dataUrl;
-          currentItem.status = 'success';
+            if (ocrMode === 'part_no') currentItem.part_no = cleanText;
+            if (ocrMode === 'part_name') currentItem.part_name = cleanText;
+            if (ocrMode === 'material') currentItem.material = cleanText;
 
-          return newResults;
-        });
+            currentItem.thumbnail = dataUrl;
+            currentItem.status = 'success';
+
+            return newResults;
+          });
+        }
       }
     } catch (e) {
       console.error(e);

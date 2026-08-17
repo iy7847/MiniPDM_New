@@ -25,10 +25,11 @@ import 'react-pdf/dist/Page/TextLayer.css';
 interface SmartPdfImporterProps {
   isOpen: boolean;
   onClose: () => void;
-  onImportComplete: (files: File[]) => void;
+  onImportComplete: (items: EstimateItem[]) => void;
+  companyInfo?: any;
 }
 
-export function SmartPdfImporter({ isOpen, onClose, onImportComplete }: SmartPdfImporterProps) {
+export function SmartPdfImporter({ isOpen, onClose, onImportComplete, companyInfo }: SmartPdfImporterProps) {
   const [file, setFile] = useState<File | null>(null);
   const [numPages, setNumPages] = useState<number>(0);
   const [pageNumber, setPageNumber] = useState<number>(1);
@@ -90,16 +91,19 @@ export function SmartPdfImporter({ isOpen, onClose, onImportComplete }: SmartPdf
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     setIsDragOver(true);
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     setIsDragOver(false);
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     setIsDragOver(false);
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       processFile(e.dataTransfer.files[0]);
@@ -144,14 +148,15 @@ export function SmartPdfImporter({ isOpen, onClose, onImportComplete }: SmartPdf
   };
 
   const handleApply = () => {
-    exportPdf(file, ocrResults, masks, RENDER_WIDTH, onImportComplete, onClose, setIsProcessing);
+    exportPdf(file, ocrResults, masks, RENDER_WIDTH, companyInfo, onImportComplete, onClose, setIsProcessing);
   };
 
   const handleExportSplitFiles = () => {
     exportSplitFilesToLocal(file, ocrResults, masks, RENDER_WIDTH, setIsProcessing);
   };
 
-  const validCount = ocrResults.filter(r => !r.skip && r.part_no).length;
+  const validForEstimateCount = ocrResults.filter(r => !r.skip && r.part_no).length;
+  const validForSplitCount = ocrResults.filter(r => !r.skip).length;
 
   if (!isOpen) return null;
 
@@ -251,7 +256,7 @@ export function SmartPdfImporter({ isOpen, onClose, onImportComplete }: SmartPdf
           <Button
             variant="outline"
             onClick={handleExportSplitFiles}
-            disabled={isProcessing || validCount === 0}
+            disabled={isProcessing || validForSplitCount === 0}
             className="text-status-success border-status-success hover:bg-status-success/10"
           >
             📂 분할 파일만 저장
@@ -259,9 +264,9 @@ export function SmartPdfImporter({ isOpen, onClose, onImportComplete }: SmartPdf
           <Button
             variant="primary"
             onClick={handleApply}
-            disabled={isProcessing || validCount === 0}
+            disabled={isProcessing || validForEstimateCount === 0}
           >
-            {isProcessing ? '처리 중...' : `우측 보관함으로 전송 (${validCount})`}
+            {isProcessing ? '처리 중...' : `견적 목록에 추가 (${validForEstimateCount})`}
           </Button>
         </div>
       </Card>

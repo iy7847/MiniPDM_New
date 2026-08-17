@@ -38,15 +38,18 @@ interface EstimateDetailModalsProps {
   onReload: () => void;
   onAddItem: (item: EstimateItem) => void;
   onAddItems: (newItems: EstimateItem[]) => void;
+  onUpdateItem?: (item: EstimateItem) => void;
   onSaveClient: (formData: ClientFormData) => Promise<void>;
   onMultiDuplicate: (quantities: number[]) => void;
   onExportExcel: () => void;
+  onConvertOrder?: (selectedItems: any[]) => Promise<void>;
+  showForeign?: boolean;
 }
 
 export const EstimateDetailModals = forwardRef<EstimateDetailModalsRef, EstimateDetailModalsProps>((props, ref) => {
   const {
     estimateId, estimate, items, clients, companyId, metadata,
-    isLocked, onReload, onAddItem, onAddItems, onSaveClient, onMultiDuplicate, onExportExcel
+    isLocked, onReload, onAddItem, onAddItems, onUpdateItem, onSaveClient, onMultiDuplicate, onExportExcel, showForeign
   } = props;
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -116,26 +119,14 @@ export const EstimateDetailModals = forwardRef<EstimateDetailModalsRef, Estimate
           currency={estimate?.currency || 'KRW'}
           exchangeRate={estimate?.base_exchange_rate || 1}
           editingItem={editingItemForModal}
-          onSaveSuccess={() => {
-            onReload();
+          onSaveSuccess={(item) => {
+            if (editingItemForModal) {
+              onUpdateItem?.(item);
+            } else {
+              onAddItem(item);
+            }
             setIsModalOpen(false);
             setEditingItemForModal(null);
-          }}
-          onSaveFiles={async (itemId: string, files: File[]) => {
-            const newFilesToInsert = files.map((file: File) => {
-              const filePath = (window as any).webUtils ? (window as any).webUtils.getPathForFile(file) : (file as any).path;
-              return {
-                estimate_item_id: itemId,
-                file_name: file.name,
-                file_path: filePath,
-                file_type: file.name.split('.').pop() || 'unknown',
-                file_size: file.size,
-                version: 1,
-                is_current: true
-              };
-            });
-            const { error } = await supabase.from('files').insert(newFilesToInsert);
-            if (error) console.error('Failed to insert temp files', error);
           }}
           onDeleteExistingFile={async (fileId: string) => {
             await supabase.from('files').delete().eq('id', fileId);
@@ -175,6 +166,7 @@ export const EstimateDetailModals = forwardRef<EstimateDetailModalsRef, Estimate
             setIsImportModalOpen(false);
           }}
           initialRawRows={importModalInitialRows}
+          companyInfo={metadata?.companyInfo}
         />
       )}
 
@@ -185,6 +177,7 @@ export const EstimateDetailModals = forwardRef<EstimateDetailModalsRef, Estimate
           estimate={estimate}
           items={items}
           clientInfo={clients.find(c => c.id === estimate.client_id)}
+          showForeign={showForeign}
         />
       )}
 
@@ -193,6 +186,7 @@ export const EstimateDetailModals = forwardRef<EstimateDetailModalsRef, Estimate
           isOpen={isParserModalOpen}
           onClose={() => setIsParserModalOpen(false)}
           files={droppedFiles}
+          companyInfo={metadata?.companyInfo}
           onParseComplete={(parsedData) => {
             onAddItems(parsedData);
             setIsParserModalOpen(false);
@@ -204,10 +198,10 @@ export const EstimateDetailModals = forwardRef<EstimateDetailModalsRef, Estimate
         <SmartPdfImporter
           isOpen={isOcrModalOpen}
           onClose={() => setIsOcrModalOpen(false)}
-          onImport={(rows) => {
-            setImportModalInitialRows(rows);
+          companyInfo={metadata?.companyInfo}
+          onImportComplete={(items) => {
+            onAddItems(items as any);
             setIsOcrModalOpen(false);
-            setIsImportModalOpen(true);
           }}
         />
       )}
@@ -233,10 +227,10 @@ export const EstimateDetailModals = forwardRef<EstimateDetailModalsRef, Estimate
           onClose={() => setIsOrderModalOpen(false)}
           estimate={estimate}
           items={items}
-          onConvert={(selectedItemsToOrder) => {
-             // onConvert is handled inside OrderConversionModal by default, just close here
-             // Wait, the original code called toast.success and closed modal
-             // I will let the hook handle the toast or just do it in the modal if it's there
+          onConvert={async (selectedItemsToOrder) => {
+             if (props.onConvertOrder) {
+               await props.onConvertOrder(selectedItemsToOrder);
+             }
              setIsOrderModalOpen(false);
           }}
         />

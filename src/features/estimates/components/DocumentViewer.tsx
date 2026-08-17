@@ -3,12 +3,15 @@ import { X, FileText, Box, FileType } from 'lucide-react';
 import { supabase } from '../../../shared/services/supabase';
 import { EXT_2D, EXT_3D } from '../utils/fileMatching';
 import { toast } from '../../../shared/stores/useToastStore';
+import { EditablePdfViewer } from './EditablePdfViewer';
 
 interface DocumentViewerProps {
   files: any[];        // DB에 저장된 파일 목록 (file_path, file_name, file_type)
   tempFiles?: File[];  // 아직 업로드 전 로컬 File 객체 목록
   onRemoveDbFile?: (fileId: string) => void;    // DB 파일 제거 콜백
   onRemoveTempFile?: (index: number) => void;   // 임시 파일 제거 콜백
+  onOcrResult?: (text: string, mode: 'part_no' | 'part_name' | 'material') => void;
+  onSaveMaskedPdf?: (fileId: string | null, tempIndex: number | null, newFile: File) => void;
 }
 
 export const DocumentViewer: React.FC<DocumentViewerProps> = ({
@@ -16,6 +19,8 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   tempFiles = [],
   onRemoveDbFile,
   onRemoveTempFile,
+  onOcrResult,
+  onSaveMaskedPdf
 }) => {
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
 
@@ -50,9 +55,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
     };
   }, []);
 
-  // ── 빈 상태 처리 전 Hook 선언 ────────────────────────────────────────────
-  // 같은 File 객체에 대해 URL.createObjectURL 을 딱 한 번만 실행,
-  // 매 렌더링마다 새 URL 이 생성되어 iframe 이 깜빡이는 현상을 원천 차단합니다.
   const [activeIndex, setActiveIndex] = useState<number>(0);
   const blobUrlCache = useRef<WeakMap<File, string>>(new WeakMap());
 
@@ -63,7 +65,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
     return blobUrlCache.current.get(file)!;
   };
 
-  // 컴포넌트 언마운트 시 생성한 Blob URL 메모리 해제
   useEffect(() => {
     const cache = blobUrlCache.current;
     return () => {
@@ -75,7 +76,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── 파일 제거 핸들러 ────────────────────────────────────────────────────
   const handleRemove = (e: React.MouseEvent, idx: number) => {
     e.stopPropagation();
     const totalCount = files.length + (tempFiles?.length || 0);
@@ -88,7 +88,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
       if (fileId) onRemoveDbFile?.(fileId);
     }
 
-    // 삭제 후 activeIndex 보정
     const nextTotal = totalCount - 1;
     if (nextTotal === 0) {
       setActiveIndex(0);
@@ -97,12 +96,11 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
     }
   };
 
-  // ── 빈 상태 처리 전 Hook 선언 ──────────────────────────────────────────
   const [dbUrls, setDbUrls] = useState<Record<string, string>>({});
+  const [dbFileObjects, setDbFileObjects] = useState<Record<string, File>>({});
   const [loadingDbFile, setLoadingDbFile] = useState<boolean>(false);
   const [dbFileError, setDbFileError] = useState<string | null>(null);
 
-  // 컴포넌트 언마운트 시 생성한 DB Blob URL 메모리 해제
   useEffect(() => {
     return () => {
       Object.values(dbUrls).forEach(url => URL.revokeObjectURL(url));
@@ -110,17 +108,15 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   }, [dbUrls]);
 
   const totalFiles = [...files, ...tempFiles];
-  // activeIndex 가 범위를 벗어나지 않도록 안전 처리
   const safeIndex = totalFiles.length === 0 ? 0 : Math.min(activeIndex, totalFiles.length - 1);
   const activeFile = totalFiles[safeIndex];
   const isTemp = safeIndex >= files.length;
 
-  // DB 파일 로드 이펙트
   useEffect(() => {
     if (isTemp || !activeFile || !activeFile.id) return;
     
     const fileId = activeFile.id;
-    if (dbUrls[fileId]) return; // 이미 로드됨
+    if (dbUrls[fileId]) return;
 
     const loadLocalFile = async () => {
       try {
@@ -135,7 +131,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
 
         const dbPath = activeFile.file_path || '';
         let fullPath = dbPath;
-        // 드라이브 문자로 시작하거나 슬래시로 시작하는 절대 경로인지 확인
         if (!dbPath.match(/^[a-zA-Z]:[\\/]/) && !dbPath.startsWith('/')) {
           const companyRootPath = localStorage.getItem('company_root_path') || 'D:\\99_ETC\\임시데이터';
           fullPath = `${companyRootPath}\\${dbPath}`;
@@ -143,13 +138,16 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
 
         const response = await (window as any).ipcRenderer.invoke('read-local-file', fullPath);
         if (response.success) {
-          const ext = activeFile.file_name?.split('.').pop()?.toLowerCase() || '';
+          const fileName = activeFile.file_name || 'download';
+          const ext = fileName.split('.').pop()?.toLowerCase() || '';
           let mimeType = 'application/octet-stream';
           if (ext === 'pdf') mimeType = 'application/pdf';
           else if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) mimeType = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
           
-          const blob = new Blob([response.data], { type: mimeType });
-          const url = URL.createObjectURL(blob);
+          const fileObj = new File([response.data], fileName, { type: mimeType });
+          const url = URL.createObjectURL(fileObj);
+          
+          setDbFileObjects(prev => ({ ...prev, [fileId]: fileObj }));
           setDbUrls(prev => ({ ...prev, [fileId]: url }));
         } else {
           setDbFileError('파일을 찾을 수 없거나 읽을 수 없습니다: ' + response.error);
@@ -164,7 +162,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
     loadLocalFile();
   }, [isTemp, activeFile, dbUrls]);
 
-  // ── 빈 상태 (파일 없음) ─────────────────────────────────────────────────
   if (totalFiles.length === 0) {
     return (
       <div className="w-full h-full flex flex-col items-center justify-center bg-bg-base">
@@ -173,21 +170,21 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
     );
   }
 
-
   let fileUrl = '';
   let fileType = '';
   let fileName = '';
+  let currentFileObj: File | null = null;
 
   if (isTemp) {
-    const f = activeFile as File;
-    fileUrl = getBlobUrl(f); // 캐시에서 가져옴 — 항상 같은 URL 반환
-    fileType = f.type;
-    fileName = f.name;
+    currentFileObj = activeFile as File;
+    fileUrl = getBlobUrl(currentFileObj);
+    fileType = currentFileObj.type;
+    fileName = currentFileObj.name;
   } else if (activeFile) {
     fileName = activeFile.file_name || '';
     fileUrl = dbUrls[activeFile.id] || '';
+    currentFileObj = dbFileObjects[activeFile.id] || null;
     
-    // 확장자로 MIME 타입 추론
     const ext = fileName.split('.').pop()?.toLowerCase();
     if (ext === 'pdf') fileType = 'application/pdf';
     else if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '')) fileType = 'image/' + ext;
@@ -196,9 +193,18 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   const isPdf = fileType === 'application/pdf';
   const isImage = fileType.startsWith('image/');
 
+  const handleSaveMaskedPdf = (newFile: File) => {
+    if (onSaveMaskedPdf) {
+      if (isTemp) {
+        onSaveMaskedPdf(null, safeIndex - files.length, newFile);
+      } else {
+        onSaveMaskedPdf(activeFile.id, null, newFile);
+      }
+    }
+  };
+
   return (
     <div className="w-full h-full flex flex-col bg-bg-surface overflow-hidden" data-dragging={isDraggingGlobal}>
-      {/* 파일 탭 목록 */}
       <div className="flex bg-bg-elevated border-b border-border-default overflow-x-auto custom-scrollbar shrink-0">
         {totalFiles.map((f, idx) => {
           const isLocal = idx >= files.length;
@@ -220,7 +226,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
                 {is3D ? <Box size={14} /> : <FileText size={14} />}
               </div>
               <span className="max-w-[120px] truncate" title={name}>{name}</span>
-              {/* X 버튼 — 탭 호버 시 표시 */}
               <button
                 className={`ml-1 rounded-full p-0.5 transition-colors
                   ${isActive
@@ -236,25 +241,21 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
         })}
       </div>
 
-      {/* 뷰어 영역 */}
       <div className="flex-1 relative w-full h-full bg-bg-base/50">
-        {/* PDF 등 iframe이 드래그 이벤트를 삼키는 것을 방지하는 투명 오버레이 */}
         <div className="absolute inset-0 z-[100] pointer-events-none group-data-[dragging=true]:pointer-events-auto" />
         
         {(!isTemp && loadingDbFile) ? (
-          <div className="text-text-secondary animate-pulse">로컬 파일 읽는 중...</div>
+          <div className="text-text-secondary animate-pulse flex items-center justify-center h-full">로컬 파일 읽는 중...</div>
         ) : (!isTemp && dbFileError) ? (
-          <div className="text-status-danger text-center px-4">
+          <div className="text-status-danger text-center px-4 flex flex-col items-center justify-center h-full">
             <p className="font-bold mb-1">파일 열기 실패</p>
             <p className="text-sm opacity-80">{dbFileError}</p>
           </div>
-        ) : isPdf && fileUrl ? (
-          <embed
-            key={fileUrl}
-            src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
-            type="application/pdf"
-            className="w-full h-full border-none"
-            title={fileName}
+        ) : isPdf && currentFileObj ? (
+          <EditablePdfViewer 
+            file={currentFileObj} 
+            onOcrResult={onOcrResult} 
+            onSaveMaskedPdf={handleSaveMaskedPdf} 
           />
         ) : isImage && fileUrl ? (
           <img
