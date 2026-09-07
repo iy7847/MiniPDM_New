@@ -5,6 +5,7 @@ import { calculateEstimate } from './useEstimateCalculations';
 import { matchFilesToItems } from '../utils/fileMatching';
 import type { Estimate, EstimateItem } from '../types';
 import { createInitialItemForm } from '../types';
+import { useConfirm } from '../../../app/providers/ConfirmProvider';
 
 interface UseEstimatePageActionsProps {
   id: string | undefined;
@@ -23,7 +24,8 @@ interface UseEstimatePageActionsProps {
 export function useEstimatePageActions({
   id, isNew, companyId, estimate, setEstimate, items, setItems, metadata, saveDetail, navigate, modalsRef
 }: UseEstimatePageActionsProps) {
-  
+  const { confirm } = useConfirm();
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [isGeneratingProjectName, setIsGeneratingProjectName] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -171,7 +173,6 @@ export function useEstimatePageActions({
   const handleSave = async () => {
     if (!companyId) return;
     try {
-      // 미리 임시 ID를 실제 UUID로 확정 
       const itemsToSave = items.map(item => {
         if (!item.id || item.id === 'NEW-PART' || item.id.startsWith('temp-')) {
           return { ...item, id: crypto.randomUUID() };
@@ -179,21 +180,30 @@ export function useEstimatePageActions({
         return item;
       });
 
+      // UI의 임시 ID들을 실제 UUID로 먼저 업데이트하여, 나중에 loadDetail에서 tempFiles 복원 시 ID 매칭이 되도록 합니다.
+      setItems(itemsToSave);
+
       const totalAmount = itemsToSave.reduce((sum, item) => sum + (item.supply_price || 0), 0);
-      const savedData = await saveDetail({ ...estimate, company_id: companyId, total_amount: totalAmount }, itemsToSave);
+      const estimateToSave = { ...estimate, company_id: companyId, total_amount: totalAmount };
+      if (estimateToSave.id === 'new') {
+        delete estimateToSave.id;
+      }
+      const savedData = await saveDetail(estimateToSave, itemsToSave);
       
       const newFilesToInsert: any[] = [];
       const currentYear = new Date().getFullYear().toString();
-      const estId = estimate?.id || (savedData as any)?.id; // 타입 단언 추가
+      const estId = (typeof savedData === 'string' ? savedData : (savedData as any)?.id) || (estimate?.id !== 'new' ? estimate?.id : null);
       
       if (estId) {
         const shortId = estId.substring(0, 8).toUpperCase();
+        let fileCount = 0;
         for (const item of itemsToSave) {
           const safePartName = (item.part_no || item.part_name || 'UNKNOWN').replace(/[^a-zA-Z0-9가-힣_-]/g, '');
           const targetFolderName = `${safePartName}_${item.id.split('-')[0]}`;
           const targetPath = `${currentYear}/Estimates/EST-${shortId}/${targetFolderName}`;
           
           if (item.tempFiles && item.tempFiles.length > 0) {
+            fileCount += item.tempFiles.length;
             for (const file of item.tempFiles) {
             if (window.fileSystem && window.fileSystem.saveFile) {
               let srcPath = (file as any).path || (file as any).file_path;
@@ -227,7 +237,19 @@ export function useEstimatePageActions({
                   file_type: file.type?.startsWith('image/') ? 'IMAGE' : (file.name.toLowerCase().endsWith('.pdf') ? 'PDF' : 'DOCUMENT'),
                   file_size: file.size || 0
                 });
+              } else {
+                toast.error(`파일 저장 실패: ${file.name} (Electron 로컬 저장 실패)`);
               }
+            } else {
+              // 브라우저 환경을 위한 임시 처리 (Supabase Storage 업로드 또는 로컬 스토리지 우회)
+              console.warn('Electron 환경이 아닙니다. DB에 파일 기록만 추가합니다.');
+              newFilesToInsert.push({
+                  estimate_item_id: item.id,
+                  file_name: file.name,
+                  file_path: `browser_fallback/${Date.now()}_${file.name}`,
+                  file_type: file.type?.startsWith('image/') ? 'IMAGE' : (file.name.toLowerCase().endsWith('.pdf') ? 'PDF' : 'DOCUMENT'),
+                  file_size: file.size || 0
+              });
             }
           }
         }
@@ -235,11 +257,16 @@ export function useEstimatePageActions({
         
         if (newFilesToInsert.length > 0) {
           const { error } = await supabase.from('files').insert(newFilesToInsert);
-          if (error) throw error;
+          if (error) {
+            toast.error('DB 파일 기록 삽입 실패: ' + error.message);
+            throw error;
+          }
+        } else if (fileCount > 0) {
+          toast.error(`tempFiles가 ${fileCount}개 있었지만 newFilesToInsert에 담기지 않았습니다!`);
         }
       }
 
-      toast.success('저장이 완료되었습니다.');
+      toast.success(`저장이 완료되었습니다. (추가된 파일: ${newFilesToInsert.length}개)`);
       if (isNew) {
         navigate('/estimates');
       } else if (newFilesToInsert.length > 0) {
@@ -254,21 +281,25 @@ export function useEstimatePageActions({
   const handleAddItem = async () => {
     if (isNew) {
       if (!estimate?.client_id) {
-        alert('품목을 추가하기 전에 거래처를 먼저 선택해주세요.');
+        toast.error('품목을 추가하기 전에 거래처를 먼저 선택해주세요.');
         return;
       }
       try {
         if (!companyId) {
-           alert('회사 정보를 불러오지 못했습니다.');
+          toast.error('회사 정보를 불러오지 못했습니다.');
            return;
         }
-        const savedEstimate = await saveDetail({ ...estimate, company_id: companyId }, items);
+        const estimateToSave = { ...estimate, company_id: companyId };
+        if (estimateToSave.id === 'new') {
+          delete estimateToSave.id;
+        }
+        const savedEstimate = await saveDetail(estimateToSave, items);
         if (savedEstimate?.id) {
           navigate(`/estimates/${savedEstimate.id}`, { replace: true });
         }
       } catch (e: any) {
         console.error(e);
-        alert('임시 견적서를 생성하는 도중 오류가 발생했습니다.');
+        toast.error('임시 견적서를 생성하는 도중 오류가 발생했습니다.');
         return;
       }
     }
@@ -289,18 +320,23 @@ export function useEstimatePageActions({
   };
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!e.dataTransfer.types.includes('Files')) return;
     e.preventDefault();
     e.stopPropagation();
     if (!isDragging) setIsDragging(true);
   };
 
   const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!e.dataTransfer.types.includes('Files')) return;
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
   };
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>, isLocked: boolean) => {
+    const hasFiles = e.dataTransfer.types.includes('Files');
+    if (!hasFiles) return; // 텍스트 등 다른 드래그 앤 드롭 무시 (입력창 방해 방지)
+
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
@@ -360,7 +396,7 @@ export function useEstimatePageActions({
   };
 
   const handleRemoveSingleFile = async (itemId: string, file: any, skipConfirm?: boolean) => {
-    if (!skipConfirm && !window.confirm('이 파일을 삭제하시겠습니까?')) return;
+    if (!skipConfirm && !(await confirm({ title: '파일 삭제', description: '이 파일을 삭제하시겠습니까?', isDanger: true }))) return;
     
     const isTemp = !file.id;
     if (isTemp) {
@@ -396,7 +432,7 @@ export function useEstimatePageActions({
   };
 
   const handleRemoveMultipleFiles = async (itemId: string, filesToRemove: any[]) => {
-    if (!window.confirm(`해당 타입의 첨부파일 ${filesToRemove.length}개를 모두 삭제하시겠습니까?`)) return;
+    if (!(await confirm({ title: '다중 파일 삭제', description: `해당 타입의 첨부파일 ${filesToRemove.length}개를 모두 삭제하시겠습니까?`, isDanger: true }))) return;
     
     const dbFileIds = filesToRemove.filter(f => f.id).map(f => f.id);
     const tempFileNames = filesToRemove.filter(f => !f.id).map(f => f.name);

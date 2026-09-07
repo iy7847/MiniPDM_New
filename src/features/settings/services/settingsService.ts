@@ -31,6 +31,7 @@ export interface CompanySettings {
   default_rounding_unit: number;
   default_time_step: number;
   default_profit_rate_step: number;
+  custom_estimate_columns?: string[];
   updated_at?: string;
 }
 

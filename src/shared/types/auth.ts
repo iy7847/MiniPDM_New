@@ -8,6 +8,7 @@ export interface UserPermissions {
   can_manage_clients: boolean;
   can_manage_materials: boolean;
   can_view_analytics: boolean;
+  can_manage_settings: boolean;
 }
 
 export interface UserGroup {

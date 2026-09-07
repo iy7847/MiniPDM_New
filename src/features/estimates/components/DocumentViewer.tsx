@@ -12,6 +12,7 @@ interface DocumentViewerProps {
   onRemoveTempFile?: (index: number) => void;   // 임시 파일 제거 콜백
   onOcrResult?: (text: string, mode: 'part_no' | 'part_name' | 'material') => void;
   onSaveMaskedPdf?: (fileId: string | null, tempIndex: number | null, newFile: File) => void;
+  isReadOnly?: boolean;
 }
 
 export const DocumentViewer: React.FC<DocumentViewerProps> = ({
@@ -20,7 +21,8 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   onRemoveDbFile,
   onRemoveTempFile,
   onOcrResult,
-  onSaveMaskedPdf
+  onSaveMaskedPdf,
+  isReadOnly = false
 }) => {
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
 
@@ -226,16 +228,18 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
                 {is3D ? <Box size={14} /> : <FileText size={14} />}
               </div>
               <span className="max-w-[120px] truncate" title={name}>{name}</span>
-              <button
-                className={`ml-1 rounded-full p-0.5 transition-colors
-                  ${isActive
-                    ? 'text-brand-400 hover:text-white hover:bg-brand-500'
-                    : 'text-transparent group-hover:text-text-secondary group-hover:hover:text-white group-hover:hover:bg-red-500'}`}
-                title="파일 제거"
-                onPointerDown={(e) => handleRemove(e, idx)}
-              >
-                <X size={12} />
-              </button>
+              {!isReadOnly && (
+                <button
+                  className={`ml-1 rounded-full p-0.5 transition-colors
+                    ${isActive
+                      ? 'text-brand-400 hover:text-white hover:bg-brand-500'
+                      : 'text-transparent group-hover:text-text-secondary group-hover:hover:text-white group-hover:hover:bg-red-500'}`}
+                  title="파일 제거"
+                  onPointerDown={(e) => handleRemove(e, idx)}
+                >
+                  <X size={12} />
+                </button>
+              )}
             </div>
           );
         })}
@@ -256,6 +260,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
             file={currentFileObj} 
             onOcrResult={onOcrResult} 
             onSaveMaskedPdf={handleSaveMaskedPdf} 
+            isViewerOnly={isReadOnly}
           />
         ) : isImage && fileUrl ? (
           <img

@@ -33,6 +33,9 @@ export function useBarcodeScanner({ onScan, debounceTime = 50 }: UseBarcodeScann
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
     const listener = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+
       // 바코드 스캐너의 입력 간격 계산
       const currentTime = Date.now();
       const timeDiff = currentTime - lastKeyTime;

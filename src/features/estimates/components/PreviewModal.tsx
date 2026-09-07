@@ -7,8 +7,6 @@ import { useAuth } from '../../../app/providers/AuthProvider';
 import { useSettingsStore } from '../../../shared/stores/useSettingsStore';
 import { QuotationTemplate } from './QuotationTemplate';
 import { CustomQuotationTemplate } from './CustomQuotationTemplate';
-// @ts-ignore
-import html2pdf from 'html2pdf.js';
 
 interface PreviewModalProps {
   isOpen: boolean;
@@ -24,6 +22,7 @@ export function PreviewModal({ isOpen, onClose, estimate, items, clientInfo, sho
   const [isLoading, setIsLoading] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [companyInfo, setCompanyInfo] = useState<any>(null);
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
   
   const { user } = useAuth();
   const { settings, customTemplates, loadSettings, loadCustomTemplates } = useSettingsStore();
@@ -39,47 +38,54 @@ export function PreviewModal({ isOpen, onClose, estimate, items, clientInfo, sho
           URL.revokeObjectURL(pdfUrl);
           setPdfUrl(null);
         }
+        setIsDataLoaded(false); // Reset on close
       }, 300);
       return () => clearTimeout(timer);
     }
   }, [isOpen]);
 
   useEffect(() => {
-    if (user && isOpen && !companyInfo) {
-      const fetchCompany = async () => {
-        const { data: profile } = await supabase.from('profiles').select('company_id').eq('id', user.id).single();
-        if (profile?.company_id) {
-          const { data: company } = await supabase.from('companies').select('*').eq('id', profile.company_id).single();
-          setCompanyInfo(company);
-          loadSettings(profile.company_id);
-          loadCustomTemplates(profile.company_id);
-        }
-      };
-      fetchCompany();
+    if (user && isOpen) {
+      if (!companyInfo) {
+        const fetchCompany = async () => {
+          const { data: profile } = await supabase.from('profiles').select('company_id').eq('id', user.id).single();
+          if (profile?.company_id) {
+            const { data: company } = await supabase.from('companies').select('*').eq('id', profile.company_id).single();
+            setCompanyInfo(company);
+            await Promise.all([
+              loadSettings(profile.company_id),
+              loadCustomTemplates(profile.company_id)
+            ]);
+            setIsDataLoaded(true);
+          }
+        };
+        fetchCompany();
+      } else {
+        // 이미 companyInfo가 있다면 이전에 불러온 상태이므로 바로 완료 처리
+        setIsDataLoaded(true);
+      }
     }
   }, [user, isOpen, companyInfo, loadSettings, loadCustomTemplates]);
 
-  useEffect(() => {
-    if (isOpen && companyInfo && printRef.current && !pdfUrl && !isLoading) {
-      // Allow a brief moment for React to finish rendering the offscreen template
-      setTimeout(() => {
-        generatePdf();
-      }, 500);
-    }
-  }, [isOpen, companyInfo, pdfUrl, isLoading]);
+  const templateType = settings?.quotation_template_type || 'standard';
+  const activeTemplate = templateType.startsWith('custom_') 
+    ? customTemplates.find(t => t.id === templateType.replace('custom_', ''))
+    : null;
 
-  const generatePdf = async () => {
+  const generatePdf = async (isLandscapeMode: boolean) => {
     if (!printRef.current) return;
     setIsLoading(true);
     
     try {
+      // @ts-ignore
+      const html2pdf = (await import('html2pdf.js')).default;
       const element = printRef.current;
       const opt = {
         margin:       0,
         filename:     `견적서_${clientInfo?.name || '고객'}_${estimate?.project_name || '프로젝트'}.pdf`,
         image:        { type: 'jpeg', quality: 1.0 },
-        html2canvas:  { scale: 2, useCORS: true, logging: false, windowWidth: 794 },
-        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        html2canvas:  { scale: 2, useCORS: true, logging: false, windowWidth: isLandscapeMode ? 1123 : 794 },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: isLandscapeMode ? 'landscape' : 'portrait' },
         pagebreak:    { mode: ['css', 'legacy'] }
       };
 
@@ -94,21 +100,39 @@ export function PreviewModal({ isOpen, onClose, estimate, items, clientInfo, sho
     }
   };
 
-  if (!mounted) return null;
+  useEffect(() => {
+    // isDataLoaded가 true이고, activeTemplate도 확정되었을 때만 렌더링
+    if (isOpen && isDataLoaded && printRef.current && !pdfUrl && !isLoading) {
+      const isLandscapeMode = activeTemplate?.layout_json?.orientation === 'landscape';
+      
+      const timer = setTimeout(() => {
+        generatePdf(isLandscapeMode);
+      }, 800); // 렌더링 대기 시간을 조금 더 여유롭게 줌
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, isDataLoaded, pdfUrl, isLoading, activeTemplate]);
 
-  const templateType = settings?.quotation_template_type || 'standard';
-  const activeTemplate = templateType.startsWith('custom_') 
-    ? customTemplates.find(t => t.id === templateType.replace('custom_', ''))
-    : null;
+  if (!mounted) return null;
 
   const processedItems = showForeign && estimate?.base_exchange_rate && estimate.base_exchange_rate > 0 
     ? items.map(item => {
-        const up = (item.unit_price || 0) / estimate.base_exchange_rate!;
-        const sp = (item.supply_price || 0) / estimate.base_exchange_rate!;
+        const rate = estimate.base_exchange_rate!;
+        const up = (item.unit_price || 0) / rate;
+        const sp = (item.supply_price || 0) / rate;
+        
+        let newCustomCosts = { ...item.custom_costs };
+        if (item.custom_costs) {
+          for (const key in item.custom_costs) {
+            newCustomCosts[key] = Math.ceil((item.custom_costs[key] / rate) * 100) / 100;
+          }
+        }
+
         return {
           ...item,
           unit_price: Math.ceil(up * 100) / 100,
-          supply_price: Math.ceil(sp * 100) / 100
+          supply_price: Math.ceil(sp * 100) / 100,
+          custom_costs: newCustomCosts
         };
       })
     : items;
@@ -142,15 +166,15 @@ export function PreviewModal({ isOpen, onClose, estimate, items, clientInfo, sho
             </div>
           ) : (
             <embed 
-              src={pdfUrl} 
+              src={`${pdfUrl}#navpanes=0&view=FitH`} 
               type="application/pdf"
               className="w-full h-full border-none"
               title="PDF 뷰어"
             />
           )}
 
-          <div className="absolute top-0 left-0 -z-50 opacity-0 pointer-events-none overflow-hidden h-0 w-0">
-            <div ref={printRef} className="bg-white text-black" style={{ width: '210mm' }}>
+          <div className="absolute top-0 left-[-9999px] -z-50 opacity-0 pointer-events-none">
+            <div ref={printRef} className="bg-white text-black" style={{ width: activeTemplate?.layout_json?.orientation === 'landscape' ? '1123px' : '794px' }}>
               {companyInfo && (
                 activeTemplate ? (
                   <CustomQuotationTemplate

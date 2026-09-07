@@ -101,7 +101,18 @@ export const updateEstimate = async (id: string, estimateData: any) => {
 };
 
 export const deleteEstimate = async (id: string) => {
-  // 1. Delete items first (due to potential lack of ON DELETE CASCADE)
+  // 1. 수주(Order)로 변환된 내역이 있는지 먼저 확인
+  const { data: linkedOrders } = await supabase
+    .from('estimate_items')
+    .select('id, order_items(id)')
+    .eq('estimate_id', id);
+
+  const hasLinkedOrders = linkedOrders?.some(ei => ei.order_items && ei.order_items.length > 0);
+  if (hasLinkedOrders) {
+    throw new Error('이 견적서로 등록된 수주 내역이 존재하여 삭제할 수 없습니다.\\n연결된 수주를 먼저 삭제해 주세요.');
+  }
+
+  // 2. Delete items first (due to potential lack of ON DELETE CASCADE)
   const { error: itemsError } = await supabase
     .from('estimate_items')
     .delete()
@@ -109,7 +120,7 @@ export const deleteEstimate = async (id: string) => {
     
   if (itemsError) throw itemsError;
 
-  // 2. Delete the estimate
+  // 3. Delete the estimate
   const { error } = await supabase.from('estimates').delete().eq('id', id);
   if (error) throw error;
 };
@@ -117,6 +128,11 @@ export const deleteEstimate = async (id: string) => {
 export const saveEstimateWithItems = async (estimate: any, items: any[]) => {
   const cleanEstimate = { ...estimate };
   if (cleanEstimate.client_id === '') cleanEstimate.client_id = null;
+  
+  // DB 테이블에 없는 관계(Relation) 데이터나 UI 전용 필드 제거
+  delete cleanEstimate.clients;
+  delete cleanEstimate.items;
+
 
   const cleanItems = items.map(item => {
     const cleaned = { ...item };
@@ -135,11 +151,63 @@ export const saveEstimateWithItems = async (estimate: any, items: any[]) => {
     return cleaned;
   });
 
-  const { data, error } = await supabase.rpc('upsert_estimate_with_items', {
-    p_estimate: cleanEstimate,
-    p_items: cleanItems,
-  });
-  if (error) throw error;
+  if (!cleanEstimate.id) {
+    cleanEstimate.id = crypto.randomUUID();
+  }
+
+  const { data: estData, error: estError } = await supabase
+    .from('estimates')
+    .upsert(cleanEstimate)
+    .select('id')
+    .single();
+
+  if (estError) throw estError;
+
+  const estimateId = estData.id;
+
+  const itemsToUpsert = cleanItems.map(item => ({
+    ...item,
+    estimate_id: estimateId
+  }));
+
+  if (itemsToUpsert.length > 0) {
+    const { error: itemsError } = await supabase
+      .from('estimate_items')
+      .upsert(itemsToUpsert);
+      
+    if (itemsError) throw itemsError;
+  }
+
+  const currentItemIds = itemsToUpsert.map(i => i.id);
+  if (currentItemIds.length > 0) {
+    const { data: existing } = await supabase
+      .from('estimate_items')
+      .select('id')
+      .eq('estimate_id', estimateId);
+      
+    if (existing) {
+      const idsToDelete = existing.map(e => e.id).filter(id => !currentItemIds.includes(id));
+      if (idsToDelete.length > 0) {
+        const { error: deleteError } = await supabase
+          .from('estimate_items')
+          .delete()
+          .in('id', idsToDelete);
+          
+        if (deleteError) {
+          console.error("Error deleting removed items:", deleteError);
+        }
+      }
+    }
+  } else {
+    const { error: deleteError } = await supabase
+      .from('estimate_items')
+      .delete()
+      .eq('estimate_id', estimateId);
+      
+    if (deleteError) throw deleteError;
+  }
+
+  const data = estimateId;
 
   // Insert files for the items
   /*

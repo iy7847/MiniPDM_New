@@ -1,5 +1,6 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useConfirm } from '@/app/providers/ConfirmProvider';
 import { useOrderDetail } from './hooks/useOrderDetail';
 import { OrderDetailHeader } from './components/detail/OrderDetailHeader';
 import { OrderBasicInfo } from './components/detail/OrderBasicInfo';
@@ -10,19 +11,21 @@ import { ClipboardMatchModal } from './components/detail/ClipboardMatchModal';
 import { LabelPrinterModal } from './components/detail/LabelPrinterModal';
 import { HistorySearchModal } from './components/detail/HistorySearchModal';
 import { OrderConfirmationPdfModal } from './components/detail/OrderConfirmationPdfModal';
+import { OrderFilesManagerModal } from './components/detail/OrderFilesManagerModal';
 import { exportOrderItemsToExcel } from './utils/orderExportUtils';
 import { Card } from '../../design-system/Card';
 import { Button } from '../../design-system/Button';
-import { Loader2, AlertCircle, Plus, PackageOpen } from 'lucide-react';
+import { Loader2, AlertCircle, Plus, PackageOpen, Layers } from 'lucide-react';
 import { toast } from '../../shared/stores/useToastStore';
 
 export const OrderDetailPage = () => {
+  const { confirm } = useConfirm();
   const { id } = useParams();
   const navigate = useNavigate();
   const { 
     order, items, loading, errorMsg, saving, isDirty,
     updateItemSupply, updateOrder, batchUpdateItems, 
-    updateOrderItemsBulk, generateOrderNos, deleteOrder, handleFilesDrop, addHistoryItem, addEmptyItem, deleteOrderItem, removeOrderItemFiles, removeSingleFile, removeMultipleFiles, saveOrderDetail
+    updateOrderItemsBulk, generateOrderNos, deleteOrder, handleFilesDrop, addHistoryItem, addFilesToItem, addEmptyItem, deleteOrderItem, removeOrderItemFiles, removeAllOrderFilesGlobally, removeSingleFile, removeMultipleFiles, saveOrderDetail
   } = useOrderDetail(id);
   
   const [showForeign, setShowForeign] = React.useState(false);
@@ -32,8 +35,10 @@ export const OrderDetailPage = () => {
   const [isOrderNoModalOpen, setIsOrderNoModalOpen] = React.useState(false);
   const [isClipboardModalOpen, setIsClipboardModalOpen] = React.useState(false);
   const [isLabelModalOpen, setIsLabelModalOpen] = React.useState(false);
+  const [hideCancelled, setHideCancelled] = React.useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = React.useState(false);
   const [isPdfModalOpen, setIsPdfModalOpen] = React.useState(false);
+  const [isFilesManagerOpen, setIsFilesManagerOpen] = React.useState(false);
 
   const isForeignMode = showForeign && order?.currency !== 'KRW' && (order?.exchange_rate || 0) > 0;
 
@@ -43,12 +48,19 @@ export const OrderDetailPage = () => {
   };
 
   const handleSelectAll = (selected: boolean) => {
-    if (selected) setSelectedItems(items.map(item => item.id));
+    if (selected) {
+      const selectableItems = items.filter(i => i.production_status !== 'CANCELLED');
+      setSelectedItems(selectableItems.map(item => item.id));
+    }
     else setSelectedItems([]);
   };
 
   const handleDelete = async () => {
-    if (window.confirm('정말 이 수주를 삭제하시겠습니까? 관련된 모든 품목 정보가 삭제되며 이전 견적 상태로 롤백될 수 있습니다.')) {
+    if (await confirm({ 
+      title: '수주 삭제', 
+      description: '정말 이 수주를 삭제하시겠습니까? 관련된 모든 품목 정보가 삭제되며 이전 견적 상태로 롤백될 수 있습니다.',
+      isDanger: true 
+    })) {
       const success = await deleteOrder();
       if (success) {
         navigate('/orders');
@@ -57,7 +69,7 @@ export const OrderDetailPage = () => {
   };
 
   const handleBatchConfirm = async () => {
-    if (!window.confirm(`선택한 ${selectedItems.length}개 품목을 수주 확정(생산 이관)하시겠습니까?`)) return;
+    if (!(await confirm({ title: '수주 확정', description: `선택한 ${selectedItems.length}개 품목을 수주 확정(생산 이관)하시겠습니까?` }))) return;
     batchUpdateItems(selectedItems, { production_status: 'PRODUCTION_READY' });
     const currentSelected = [...selectedItems];
     setSelectedItems([]);
@@ -65,7 +77,7 @@ export const OrderDetailPage = () => {
   };
 
   const handleBatchCancelHandoff = async () => {
-    if (!window.confirm(`선택한 ${selectedItems.length}개 품목의 이관을 취소하고 수주 대기 상태로 되돌리시겠습니까?`)) return;
+    if (!(await confirm({ title: '이관 취소', description: `선택한 ${selectedItems.length}개 품목의 이관을 취소하고 수주 대기 상태로 되돌리시겠습니까?`, isDanger: true }))) return;
     batchUpdateItems(selectedItems, { production_status: 'PENDING' });
     const currentSelected = [...selectedItems];
     setSelectedItems([]);
@@ -75,7 +87,10 @@ export const OrderDetailPage = () => {
   const handleToggleItemStatus = async (itemId: string, currentStatus: string) => {
     const newStatus = currentStatus === 'PRODUCTION_READY' ? 'PENDING' : 'PRODUCTION_READY';
     const actionText = newStatus === 'PRODUCTION_READY' ? '생산 관리로 이관' : '이관을 취소하고 수주 대기 상태로 변경';
-    if (!window.confirm(`선택한 품목을 ${actionText}하시겠습니까?`)) return;
+    if (!(await confirm({ 
+      title: '상태 일괄 변경', 
+      description: `선택한 품목을 ${actionText}하시겠습니까?` 
+    }))) return;
     
     batchUpdateItems([itemId], { production_status: newStatus });
     await saveOrderDetail(undefined, items.map(i => i.id === itemId ? { ...i, production_status: newStatus } : i));
@@ -114,13 +129,17 @@ export const OrderDetailPage = () => {
         toast.error('이미 완료된 수주는 취소할 수 없습니다.');
         return;
       }
-      if (!window.confirm('생산 이관을 취소하고 다시 수정 가능한 수주 대기 상태로 되돌리시겠습니까?')) return;
+      if (!(await confirm({ 
+        title: '생산 이관 취소', 
+        description: '생산 이관을 취소하고 다시 수정 가능한 수주 대기 상태로 되돌리시겠습니까?',
+        isDanger: true
+      }))) return;
       
       try {
         const itemIds = items.map(i => i.id);
         batchUpdateItems(itemIds, { production_status: 'PENDING' });
-        updateOrder({ status: 'ORDERED' });
-        const success = await saveOrderDetail({ status: 'ORDERED' }, items.map(i => ({ ...i, production_status: 'PENDING' })));
+        updateOrder({ status: 'PENDING' });
+        const success = await saveOrderDetail({ status: 'PENDING' }, items.map(i => ({ ...i, production_status: 'PENDING' })));
         if (success) {
           toast.success('수주 대기 상태로 돌아왔습니다. 이제 다시 수정이 가능합니다.');
         }
@@ -134,20 +153,24 @@ export const OrderDetailPage = () => {
       toast.error('수주 품목이 없습니다.');
       return;
     }
-    if (!window.confirm('현재 수주를 확정하고 전체 품목을 생산 관리로 이관하시겠습니까? (이미 부분 이관된 품목은 그대로 유지됩니다)')) return;
+    if (!(await confirm({ 
+      title: '수주 확정 및 생산 이관', 
+      description: '현재 수주를 확정하고 전체 품목을 생산 관리로 이관하시겠습니까? (이미 부분 이관된 품목은 그대로 유지됩니다)' 
+    }))) return;
 
     try {
       const pendingItems = items.filter(i => !i.production_status || i.production_status === 'PENDING');
       const itemIds = pendingItems.map(i => i.id);
       
       if (itemIds.length > 0) {
-        batchUpdateItems(itemIds, { production_status: 'PRODUCTION_READY' });
+        // We only change the order status to PRODUCTION.
+        // The items remain PENDING until processed in Production Management.
       }
       
       updateOrder({ status: 'PRODUCTION' });
       const success = await saveOrderDetail(
         { status: 'PRODUCTION' }, 
-        items.map(i => (itemIds.includes(i.id) ? { ...i, production_status: 'PRODUCTION_READY' } : i))
+        items // do not change production_status here, it should remain PENDING until processed in ProductionListPage
       );
       
       if (success) {
@@ -158,7 +181,7 @@ export const OrderDetailPage = () => {
     }
   };
 
-  const totalAmount = items.reduce((sum, item) => sum + Math.ceil((item.unit_price || 0) * (item.quantity || item.qty || 1)), 0);
+  const totalAmount = items.reduce((sum, item) => sum + Math.ceil(item.supply_price || ((item.unit_price || 0) * (item.quantity || item.qty || 1))), 0);
 
   return (
     <div className="h-full flex flex-col bg-bg-base text-text-primary">
@@ -196,10 +219,22 @@ export const OrderDetailPage = () => {
             <div className="flex justify-between items-center mb-4 min-h-[40px]">
               <div className="flex items-center gap-3">
                 <h3 className="text-lg font-bold text-text-primary">수주 품목 상세 내역</h3>
+                {items.some(i => i.production_status === 'CANCELLED') && (
+                  <div className="flex items-center gap-2 ml-2">
+                    <label className="flex items-center cursor-pointer">
+                      <div className="relative">
+                        <input type="checkbox" className="sr-only" checked={hideCancelled} onChange={(e) => setHideCancelled(e.target.checked)} />
+                        <div className={`block w-8 h-5 rounded-full transition-colors ${hideCancelled ? 'bg-brand-500' : 'bg-bg-elevated border border-border-default'}`}></div>
+                        <div className={`dot absolute left-1 top-1 bg-white w-3 h-3 rounded-full transition-transform ${hideCancelled ? 'transform translate-x-3' : ''}`}></div>
+                      </div>
+                      <span className="ml-2 text-xs text-text-secondary">취소 품목 숨기기</span>
+                    </label>
+                  </div>
+                )}
                 {!isLocked && (
-                  <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-bg-elevated border border-border-default text-[11px] text-text-secondary shadow-sm">
-                    💡 파일을 드롭하여 추가하세요
-                  </span>
+                  <Button size="sm" variant="outline" className="gap-1.5 h-7 px-3 text-xs" onClick={() => setIsFilesManagerOpen(true)}>
+                    <Layers size={14} className="text-brand-500" /> 도면 일괄 매칭/관리
+                  </Button>
                 )}
               </div>
               
@@ -232,11 +267,10 @@ export const OrderDetailPage = () => {
             </div>
 
             <OrderItemsTable 
-              items={items} 
+              items={hideCancelled ? items.filter(i => i.production_status !== 'CANCELLED') : items} 
               parentPoNo={order?.po_no}
               parentOrderDate={order?.order_date}
               onSupplyChange={updateItemSupply} 
-              onFilesDrop={isLocked ? undefined : handleFilesDrop}
               showForeign={isForeignMode}
               currency={order.currency || 'KRW'}
               exchangeRate={order.exchange_rate || 1}
@@ -251,11 +285,12 @@ export const OrderDetailPage = () => {
               onRemoveFile={removeOrderItemFiles}
               onRemoveSingleFile={removeSingleFile}
               onRemoveMultipleFiles={removeMultipleFiles}
+              onAddMaskedFile={(itemId, files) => addFilesToItem(itemId, files, false)}
               onOrderItemNoChange={(itemId, poNo) => batchUpdateItems([itemId], { order_item_no: poNo })}
               onPriceChange={(itemId, field, value) => {
                 const item = items.find(i => i.id === itemId);
                 if (!item) return;
-                
+
                 let updates: any = {};
                 if (field === 'unit_price') {
                   const qty = item.qty || 1;
@@ -316,6 +351,16 @@ export const OrderDetailPage = () => {
         onClose={() => setIsPdfModalOpen(false)}
         order={order}
         items={items}
+      />
+      
+      <OrderFilesManagerModal
+        isOpen={isFilesManagerOpen}
+        onClose={() => setIsFilesManagerOpen(false)}
+        items={items}
+        addFilesToItem={addFilesToItem}
+        removeSingleFile={removeSingleFile}
+        removeOrderItemFiles={removeOrderItemFiles}
+        removeAllOrderFilesGlobally={removeAllOrderFilesGlobally}
       />
     </div>
   );

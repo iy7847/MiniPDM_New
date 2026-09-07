@@ -16,6 +16,7 @@ interface SmartPdfToolbarProps {
   rightActions?: React.ReactNode;
   isViewerOnly?: boolean;
   onClearMasks?: () => void;
+  hideOcrTools?: boolean;
 }
 
 export function SmartPdfToolbar({
@@ -32,7 +33,8 @@ export function SmartPdfToolbar({
   onReset,
   rightActions,
   isViewerOnly = false,
-  onClearMasks
+  onClearMasks,
+  hideOcrTools = false
 }: SmartPdfToolbarProps) {
   return (
     <div className="bg-bg-elevated p-2 border-b border-border-default flex flex-wrap gap-2 items-center z-10 shadow-none w-full min-h-[50px]">
@@ -73,7 +75,7 @@ export function SmartPdfToolbar({
           </>
         )}
 
-        {!isViewerOnly && (
+        {!isViewerOnly && !hideOcrTools && (
           <>
             {/* OCR Modes */}
             <div className="flex bg-bg-base p-0.5 rounded border border-border-default">
@@ -99,13 +101,13 @@ export function SmartPdfToolbar({
             재질 <span className="opacity-50 font-normal">(4)</span>
           </button>
         </div>
+        </>
+        )}
 
         {/* Status Indicator */}
         <span className="text-xs font-bold text-brand-500 ml-2 hidden lg:inline-block">
-          {isProcessing ? '🔄 처리 중...' : isMaskMode ? '영역을 드래그하여 가림' : `🖱️ ${ocrMode === 'part_no' ? '도번' : ocrMode === 'part_name' ? '품명' : '재질'} 영역 지정`}
+          {isProcessing ? '🔄 처리 중...' : isMaskMode ? '영역을 드래그하여 가림' : (hideOcrTools ? '' : `🖱️ ${ocrMode === 'part_no' ? '도번' : ocrMode === 'part_name' ? '품명' : '재질'} 영역 지정`)}
         </span>
-        </>
-        )}
       </div>
 
       <div className="flex-1"></div>

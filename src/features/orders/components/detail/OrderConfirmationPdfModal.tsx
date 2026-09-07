@@ -20,9 +20,21 @@ export const OrderConfirmationPdfModal: React.FC<OrderConfirmationPdfModalProps>
 
   if (!isOpen) return null;
 
-  const totalAmount = items.reduce((sum, item) => sum + Math.ceil((item.unit_price || 0) * (item.quantity || item.qty || 1)), 0);
-  const vatAmount = Math.round(totalAmount * 0.1);
+  const isForeign = order.currency && order.currency !== 'KRW';
+  const rate = isForeign ? (order.exchange_rate || 1) : 1;
+
+  const totalAmount = items.reduce((sum, item) => {
+    const qty = item.quantity || item.qty || 1;
+    const price = isForeign ? ((item.unit_price || 0) / rate) : (item.unit_price || 0);
+    return sum + (price * qty);
+  }, 0);
+  
+  const vatAmount = isForeign ? totalAmount * 0.1 : Math.round(totalAmount * 0.1);
   const grandTotal = totalAmount + vatAmount;
+
+  const formatMoney = (val: number) => isForeign 
+    ? val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : Math.round(val).toLocaleString();
 
   const handlePrint = () => {
     const content = printRef.current;
@@ -131,8 +143,9 @@ export const OrderConfirmationPdfModal: React.FC<OrderConfirmationPdfModalProps>
                 <tbody>
                   {items.map((item, idx) => {
                     const qty = item.quantity || item.qty || 1;
-                    const price = item.unit_price || 0;
-                    const supply = Math.ceil(price * qty);
+                    const originalPrice = item.unit_price || 0;
+                    const price = isForeign ? (originalPrice / rate) : originalPrice;
+                    const supply = price * qty;
                     return (
                       <tr key={item.id || idx} className="border-b border-gray-200">
                         <td className="p-2 text-center border border-gray-300">{idx + 1}</td>
@@ -140,8 +153,8 @@ export const OrderConfirmationPdfModal: React.FC<OrderConfirmationPdfModalProps>
                         <td className="p-2 font-bold border border-gray-300">{item.part_name}</td>
                         <td className="p-2 text-gray-600 border border-gray-300">{item.spec || '-'}</td>
                         <td className="p-2 text-right border border-gray-300">{qty.toLocaleString()}</td>
-                        <td className="p-2 text-right border border-gray-300">{price.toLocaleString()}</td>
-                        <td className="p-2 text-right font-medium border border-gray-300">{supply.toLocaleString()}</td>
+                        <td className="p-2 text-right border border-gray-300">{formatMoney(price)}</td>
+                        <td className="p-2 text-right font-medium border border-gray-300">{formatMoney(supply)}</td>
                       </tr>
                     );
                   })}
@@ -153,15 +166,15 @@ export const OrderConfirmationPdfModal: React.FC<OrderConfirmationPdfModalProps>
                 <div className="w-72 border border-black p-3 bg-gray-50 text-xs space-y-1.5">
                   <div className="flex justify-between text-gray-700">
                     <span>공급가액 합계:</span>
-                    <span>{totalAmount.toLocaleString()} {order.currency || 'KRW'}</span>
+                    <span>{formatMoney(totalAmount)} {order.currency || 'KRW'}</span>
                   </div>
                   <div className="flex justify-between text-gray-700">
                     <span>부가가치세 (10%):</span>
-                    <span>{vatAmount.toLocaleString()} {order.currency || 'KRW'}</span>
+                    <span>{formatMoney(vatAmount)} {order.currency || 'KRW'}</span>
                   </div>
                   <div className="flex justify-between font-bold text-sm border-t border-gray-400 pt-1 text-black">
                     <span>최종 수주 총액:</span>
-                    <span className="text-blue-700">{grandTotal.toLocaleString()} {order.currency || 'KRW'}</span>
+                    <span className="text-blue-700">{formatMoney(grandTotal)} {order.currency || 'KRW'}</span>
                   </div>
                 </div>
               </div>

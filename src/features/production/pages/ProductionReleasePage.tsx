@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useStickySearchParams } from '../../../hooks/useStickySearchParams';
 import { Card, Button, Toggle, BaseSelect, BaseInput, FloatingToolbar, Badge } from '../../../design-system';
 import { Search, Hammer, ShoppingCart, CheckSquare, Square, Package, Calendar } from 'lucide-react';
+import { toast } from '@/shared/stores/useToastStore';
 
 const MOCK_ORDERS = [
   { id: 'ORD-2607-001', client: '삼성전자', date: '2026-07-26', status: 'PENDING' },
@@ -37,7 +38,7 @@ export const ProductionReleasePage = () => {
   };
 
   const handleBundleOrder = () => {
-    alert(`발주 모달 오픈! 선택된 아이템: ${Array.from(selectedItemIds).join(', ')}`);
+    toast.info(`발주 모달 오픈: 선택된 아이템 ${Array.from(selectedItemIds).join(', ')}`);
     setSelectedItemIds(new Set());
   };
 

@@ -7,6 +7,7 @@ import { PropertyPanel } from './PropertyPanel';
 import { DEFAULT_IDEAL_BLOCKS } from './templateUtils';
 import { RndBlock } from './RndBlock';
 import { BuilderToolbar } from './BuilderToolbar';
+import { toast } from '@/shared/stores/useToastStore';
 
 interface TemplateBuilderModalProps {
   onClose: () => void;
@@ -17,13 +18,21 @@ interface TemplateBuilderModalProps {
 
 export const TemplateBuilderModal: React.FC<TemplateBuilderModalProps> = ({ onClose, onSave, form, initialTemplate }) => {
   const [templateName, setTemplateName] = useState(initialTemplate?.name || '새 커스텀 양식');
+  const [orientation, setOrientation] = useState<'portrait' | 'landscape'>(initialTemplate?.layout_json?.orientation || 'portrait');
+  const [watermark, setWatermark] = useState(initialTemplate?.layout_json?.watermark || { show: false, opacity: 0.1, imagePath: '', scale: 1, rotation: 0 });
+  
+  const canvasW = orientation === 'landscape' ? 1123 : 794;
+  const canvasH = orientation === 'landscape' ? 794 : 1123;
+
   const [blocks, setBlocks] = useState<TemplateBlock[]>(() => {
+    const initialOrientation = initialTemplate?.layout_json?.orientation || 'portrait';
+    const initW = initialOrientation === 'landscape' ? 1123 : 794;
+    const initH = initialOrientation === 'landscape' ? 794 : 1123;
     const initialBlocks = initialTemplate?.layout_json?.blocks || DEFAULT_IDEAL_BLOCKS;
     return initialBlocks.map((b: any) => ({
       ...b,
-      // Ensure blocks don't render outside the canvas (which causes the "overlapping paper" visual bug)
-      x: Math.max(0, Math.min(b.x, 794 - parseInt(String(b.width || 100).replace('px', '')))),
-      y: Math.max(0, Math.min(b.y, 1123 - parseInt(String(b.height || 50).replace('px', ''))))
+      x: Math.max(0, Math.min(b.x, initW - parseInt(String(b.width || 100).replace('px', '')))),
+      y: Math.max(0, Math.min(b.y, initH - parseInt(String(b.height || 50).replace('px', ''))))
     }));
   });
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -33,9 +42,47 @@ export const TemplateBuilderModal: React.FC<TemplateBuilderModalProps> = ({ onCl
     data: true,
     etc: true
   });
+  
+  const [zoom, setZoom] = useState(1);
+
+  React.useEffect(() => {
+    const container = document.getElementById('canvas-container');
+    if (!container) return;
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        setZoom(z => Math.max(0.2, Math.min(3, z - e.deltaY * 0.002)));
+      }
+    };
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    return () => container.removeEventListener('wheel', handleWheel);
+  }, []);
 
   const toggleGroup = (group: string) => {
     setOpenGroups(prev => ({ ...prev, [group]: !prev[group] }));
+  };
+
+  const handleOrientationChange = (newOrientation: 'portrait' | 'landscape') => {
+    if (orientation === newOrientation) return;
+    setOrientation(newOrientation);
+    
+    const oldH = orientation === 'landscape' ? 794 : 1123;
+    const newH = newOrientation === 'landscape' ? 794 : 1123;
+    const deltaH = newH - oldH;
+    
+    setBlocks(blocks.map(b => {
+      let newY = b.y;
+      
+      // 바닥글(footer) 구역에 있는 블록들은 캔버스 높이 변화량만큼 같이 위/아래로 이동시켜 줍니다.
+      if (b.band === 'footer') {
+        newY = b.y + deltaH;
+      }
+      
+      return {
+        ...b,
+        y: newY
+      };
+    }));
   };
   
   // Band Heights
@@ -48,7 +95,7 @@ export const TemplateBuilderModal: React.FC<TemplateBuilderModalProps> = ({ onCl
     
     if (type === 'header') newBlock = { ...newBlock, band: 'header', y: 50, width: 400, height: 60, title: '견적서', align: 'center' };
     else if (type === 'receiver_info') newBlock = { ...newBlock, width: 300, height: 120, fields: ['manager_name', 'phone'] };
-    else if (type === 'item_table') newBlock = { ...newBlock, width: 700, height: 200, columns: ['품명', '수량', '단가', '공급가액'], theme: 'bordered' };
+    else if (type === 'item_table') newBlock = { ...newBlock, width: 700, height: 200, columns: ['품명', '수량', '단가', '공급가액'], theme: 'bordered', headerBgColor: '#f9fafb', rowHeight: 24, fontSize: 11 };
     else if (type === 'condition') newBlock = { ...newBlock, band: 'footer', y: 1123 - footerHeight + 20, width: 300, height: 60, conditionType: 'note', showTitle: true };
     else if (type === 'label') newBlock = { ...newBlock, width: 200, height: 50, text: '새 라벨', fontSize: 16, align: 'left', fontWeight: 'bold', color: '#000000' };
     else if (type === 'line') newBlock = { ...newBlock, width: 600, height: 20, thickness: 1, style: 'solid', color: '#000000' };
@@ -57,6 +104,9 @@ export const TemplateBuilderModal: React.FC<TemplateBuilderModalProps> = ({ onCl
     else if (type === 'document_info') newBlock = { ...newBlock, width: 300, height: 50, fields: ['date', 'estimate_no'] };
     else if (type === 'summary') newBlock = { ...newBlock, width: 600, height: 100, highlightColor: '#f3f4f6', showVatNote: true, showKoreanAmount: true };
     else if (type === 'page_number') newBlock = { ...newBlock, band: 'footer', y: 1123 - footerHeight + 100, width: 150, height: 30, format: '{current} / {total}', align: 'center', fontSize: 12, color: '#666666' };
+    else if (type === 'free_text') newBlock = { ...newBlock, width: 300, height: 100, text: '텍스트를 입력하세요.', align: 'left', fontSize: 12, fontWeight: 'normal' };
+    else if (type === 'approval_line') newBlock = { ...newBlock, width: 204, height: 60, titles: ['담당', '검토', '승인'], boxWidth: 60 };
+    else if (type === 'qrcode') newBlock = { ...newBlock, width: 60, height: 60, valueType: 'estimate_no', size: 60 };
     
     setBlocks([...blocks, newBlock]);
     setSelectedId(newId);
@@ -111,10 +161,12 @@ export const TemplateBuilderModal: React.FC<TemplateBuilderModalProps> = ({ onCl
 
   const handleSave = () => {
     if (!templateName.trim()) {
-      alert('양식 이름을 입력해주세요.');
+      toast.error('양식 이름을 입력해주세요.');
       return;
     }
     onSave(templateName, {
+      orientation,
+      watermark,
       headerHeight,
       footerHeight,
       blocks
@@ -128,7 +180,7 @@ export const TemplateBuilderModal: React.FC<TemplateBuilderModalProps> = ({ onCl
         {/* Top Header */}
         <div className="h-16 border-b border-border-default flex items-center justify-between px-6 bg-bg-elevated shrink-0">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-brand-bg rounded-lg">
+            <div className="p-2 bg-brand-500/10 rounded-lg">
               <FileText className="w-5 h-5 text-brand-500" />
             </div>
             <input 
@@ -170,14 +222,41 @@ export const TemplateBuilderModal: React.FC<TemplateBuilderModalProps> = ({ onCl
 
           {/* Center Panel (Canvas) */}
           <div 
-            className="flex-1 bg-bg-base overflow-y-auto p-12 flex justify-center items-start" 
+            id="canvas-container"
+            className="flex-1 bg-bg-base overflow-auto p-12 relative" 
             onClick={() => !isPreview && setSelectedId(null)}
           >
-            <div className="pb-12 shrink-0">
+            <div 
+              className="pb-12 shrink-0 w-fit mx-auto"
+              style={{ width: canvasW * zoom, height: canvasH * zoom }}
+            >
               <div 
-                className={`w-[794px] h-[1123px] bg-white shadow-lg relative flex flex-col text-black shrink-0 ${!isPreview ? 'bg-[url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCI+CjxyZWN0IHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCIgZmlsbD0ibm9uZSI+PC9yZWN0Pgo8Y2lyY2xlIGN4PSIxIiBjeT0iMSIgcj0iMSIgZmlsbD0iI2QxZDVkYiI+PC9jaXJjbGU+Cjwvc3ZnPg==")]' : ''}`} 
+                className={`bg-white shadow-lg relative flex flex-col text-black shrink-0 ${!isPreview ? 'bg-[url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCI+CjxyZWN0IHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCIgZmlsbD0ibm9uZSI+PC9yZWN0Pgo8Y2lyY2xlIGN4PSIxIiBjeT0iMSIgcj0iMSIgZmlsbD0iI2QxZDVkYiI+PC9jaXJjbGU+Cjwvc3ZnPg==")]' : ''}`} 
+                style={{ 
+                  width: canvasW, 
+                  height: canvasH,
+                  transform: `scale(${zoom})`,
+                  transformOrigin: 'top left'
+                }}
                 onClick={(e) => e.stopPropagation()}
               >
+              
+              {/* Watermark rendering in preview/builder */}
+              {watermark.show && watermark.imagePath && (
+                <div 
+                  className="absolute inset-0 pointer-events-none flex items-center justify-center"
+                  style={{ opacity: watermark.opacity, zIndex: 50 }}
+                >
+                  <img 
+                    src={watermark.imagePath} 
+                    alt="watermark" 
+                    className="max-w-full max-h-full object-contain"
+                    style={{ 
+                      transform: `scale(${watermark.scale || 1}) rotate(${watermark.rotation || 0}deg)` 
+                    }}
+                  />
+                </div>
+              )}
               
               {/* Visual Band Backgrounds (Not containers) */}
               <div style={{ height: headerHeight }} className={`relative w-full shrink-0 ${!isPreview ? 'border-b-2 border-dashed border-blue-300 bg-blue-50/20' : ''}`}>
@@ -217,13 +296,14 @@ export const TemplateBuilderModal: React.FC<TemplateBuilderModalProps> = ({ onCl
                   onClick={() => setSelectedId(block.id)} 
                   form={form} 
                   isPreview={isPreview} 
+                  zoom={zoom}
                   updateBlock={(id, updates) => {
                     let finalUpdates = { ...updates };
                     if (updates.y !== undefined) {
                       // Determine which band it was dropped in based on absolute Y
                       let newBand: 'header' | 'body' | 'footer' = 'body';
                       if (updates.y < headerHeight) newBand = 'header';
-                      else if (updates.y >= (1123 - footerHeight)) newBand = 'footer';
+                      else if (updates.y >= (canvasH - footerHeight)) newBand = 'footer';
                       finalUpdates.band = newBand;
                     }
                     updateBlock(id, finalUpdates);
@@ -246,6 +326,10 @@ export const TemplateBuilderModal: React.FC<TemplateBuilderModalProps> = ({ onCl
               footerHeight={footerHeight}
               updateHeaderHeight={setHeaderHeight}
               updateFooterHeight={setFooterHeight}
+              orientation={orientation}
+              setOrientation={handleOrientationChange}
+              watermark={watermark}
+              setWatermark={setWatermark}
             />
           )}
         </div>

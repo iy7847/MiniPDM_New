@@ -37,8 +37,16 @@ export default defineConfig({
     fs: {
       strict: false,
     },
+    watch: {
+      ignored: ['**/release/**'],
+    },
   },
   define: {
     'process.env': {},
   },
+  build: {
+    chunkSizeWarningLimit: 2000,
+    modulePreload: false, // 🚀 데스크톱 file:// 프로토콜에서 불필요한 네트워크 프리로딩 검사 및 스톨 방지
+  },
 })
+

@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Send, ClipboardPaste, Printer, Trash2, FileCheck, Download } from 'lucide-react';
-import { Button, Badge, SaveButton, DetailHeader } from '../../../../design-system';
+import { Button, Badge, SaveButton, DetailHeader, StatusBadge } from '../../../../design-system';
 import { getCurrencySymbol } from '../../../../shared/utils/currency';
 import type { Order } from '../../types';
 import type { OrderItem } from '../../../../shared/types/database';
@@ -45,33 +45,20 @@ export const OrderDetailHeader: React.FC<OrderDetailHeaderProps> = ({
 }) => {
   const navigate = useNavigate();
 
-  let statusLabel = order.status as string;
-  let statusVariant: any = 'default';
-  
   const hasReadyItems = items.some(i => i.production_status === 'PRODUCTION_READY');
-  
-  if (order.status === 'ORDERED' || order.status === 'PENDING') { 
-    if (hasReadyItems) {
-      statusLabel = '부분 이관됨';
-      statusVariant = 'warning';
-    } else {
-      statusLabel = '수주등록'; 
-      statusVariant = 'primary'; 
-    }
-  }
-  else if (order.status === 'PRODUCTION') { statusLabel = '생산중'; statusVariant = 'warning'; }
-  else if (order.status === 'INSPECTION') { statusLabel = '출하대기'; statusVariant = 'success'; }
-  else if (order.status === 'DONE' || order.status === 'COMPLETED') { statusLabel = '완료'; statusVariant = 'default'; }
+  const effectiveStatus = (order.status === 'ORDERED' || order.status === 'PENDING') && hasReadyItems 
+    ? 'PARTIALLY_TRANSFERRED' 
+    : order.status;
 
   return (
     <DetailHeader
       title={`수주 상세 (${order.po_no || order.order_number})`}
       statusBadge={
-        <>
-          <Badge variant={statusVariant}>{statusLabel}</Badge>
-          {order.shipping_status === 'shipped' && <Badge variant="success">출하완료</Badge>}
-          {order.shipping_status === 'partially_shipped' && <Badge variant="warning">부분출하</Badge>}
-        </>
+        <div className="flex items-center gap-1.5">
+          <StatusBadge type="order" status={effectiveStatus} />
+          {order.shipping_status === 'shipped' && <StatusBadge type="shipping" status="shipped" />}
+          {order.shipping_status === 'partially_shipped' && <StatusBadge type="shipping" status="partially_shipped" />}
+        </div>
       }
       subtitle={
         <>

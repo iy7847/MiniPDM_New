@@ -9,6 +9,9 @@ export interface ProcessLog {
   end_time?: string;
   status: string;
   notes?: string;
+  sequence_no?: number;
+  is_planned?: boolean;
+  is_outsource?: boolean;
 }
 
 export interface ShopFloorPart {
@@ -20,6 +23,7 @@ export interface ShopFloorPart {
   orderId: string;
   client: string;
   history: ProcessLog[];
+  currentProcess?: ProcessLog;
 }
 
 export function useShopFloor() {
@@ -36,10 +40,9 @@ export function useShopFloor() {
         .select(`
           id, part_name, part_no, spec, qty, order_id,
           orders ( po_no, clients ( name ) ),
-          process_logs ( id, process_name, worker, start_time, end_time, status, notes )
+          process_logs ( id, process_name, process_type, worker, start_time, end_time, status, notes, sequence_no, is_planned )
         `);
       
-      // UUID 형식이면 id로 검색, 아니면 order_item_no로 검색 (하위호환성 유지)
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(barcode);
       if (isUuid) {
         query = query.eq('id', barcode);
@@ -48,16 +51,33 @@ export function useShopFloor() {
       }
       
       const { data, error } = await query.single();
-
       if (error) throw error;
       if (!data) throw new Error('품목을 찾을 수 없습니다.');
 
-      // 진행 중인 로그가 있는지 확인 (end_time이 없는 경우)
-      const inProgressLog = data.process_logs?.find((log: any) => !log.end_time && log.status === '진행중');
+      // 외주 여부 확인을 위해 processes 테이블 조회
+      const { data: processesData } = await supabase.from('processes').select('id, name, is_outsource');
       
-      setCurrentLogId(inProgressLog ? inProgressLog.id : null);
+      const sortedLogs = (data.process_logs || [])
+        .map((log: any) => {
+          const proc = processesData?.find(p => p.name === log.process_name);
+          return {
+            ...log,
+            is_outsource: log.process_type === 'OUTSOURCE' || (proc?.is_outsource ?? false)
+          };
+        })
+        .sort((a: any, b: any) => {
+          const seqA = a.sequence_no ?? 9999;
+          const seqB = b.sequence_no ?? 9999;
+          return seqA - seqB;
+        });
 
-      setScannedPart({
+      const inProgressLog = sortedLogs.find((log: any) => !log.end_time && log.status === '진행중');
+      const nextWaitingLog = sortedLogs.find((log: any) => !log.end_time && log.status === '대기');
+      
+      const currentLog = inProgressLog || nextWaitingLog;
+      setCurrentLogId(currentLog ? currentLog.id : null);
+
+      const parsedPart: ShopFloorPart = {
         id: data.id,
         part_name: data.part_name,
         part_no: data.part_no,
@@ -67,10 +87,12 @@ export function useShopFloor() {
         client: Array.isArray((data.orders as any)?.clients) 
             ? (data.orders as any).clients[0]?.name 
             : (data.orders as any)?.clients?.name || '알 수 없음',
-        history: data.process_logs || []
-      });
-      
-      return { success: true };
+        history: sortedLogs,
+        currentProcess: currentLog
+      };
+
+      setScannedPart(parsedPart);
+      return { success: true, part: parsedPart };
     } catch (err: any) {
       console.error(err);
       return { success: false, error: err.message };
@@ -79,32 +101,62 @@ export function useShopFloor() {
     }
   };
 
-  // 2. 작업 시작 (process_logs INSERT)
-  const startProcess = async (processName: string, workerName: string = '작업자') => {
+  // 2. 작업 시작 (process_logs INSERT 또는 UPDATE)
+  const startProcess = async (processName: string, workerName: string = '작업자', isAdhoc: boolean = false) => {
     if (!scannedPart) return;
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('process_logs')
-        .insert({
-          order_item_id: scannedPart.id,
-          process_name: processName,
-          worker: workerName,
-          status: '진행중',
-          start_time: new Date().toISOString()
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
+      let logData;
       
-      setCurrentLogId(data.id);
+      if (!isAdhoc && scannedPart.currentProcess && scannedPart.currentProcess.status === '대기') {
+        const { data, error } = await supabase
+          .from('process_logs')
+          .update({
+            status: '진행중',
+            worker: workerName,
+            start_time: new Date().toISOString()
+          })
+          .eq('id', scannedPart.currentProcess.id)
+          .select()
+          .single();
+          
+        if (error) throw error;
+        logData = data;
+      } else {
+        const { data, error } = await supabase
+          .from('process_logs')
+          .insert({
+            order_item_id: scannedPart.id,
+            process_name: processName,
+            process_type: 'INTERNAL',
+            worker: workerName,
+            status: '진행중',
+            start_time: new Date().toISOString(),
+            is_planned: false
+          })
+          .select()
+          .single();
+          
+        if (error) throw error;
+        logData = data;
+      }
       
-      // 상태 업데이트
-      setScannedPart(prev => prev ? {
-        ...prev,
-        history: [...prev.history, data]
-      } : null);
+      setCurrentLogId(logData.id);
+      
+      setScannedPart(prev => {
+        if (!prev) return null;
+        let newHistory;
+        if (!isAdhoc && prev.currentProcess && prev.currentProcess.status === '대기') {
+          newHistory = prev.history.map(log => log.id === logData.id ? { ...log, ...logData } : log);
+        } else {
+          newHistory = [...prev.history, logData];
+        }
+        return {
+          ...prev,
+          history: newHistory,
+          currentProcess: { ...prev.currentProcess, ...logData }
+        };
+      });
 
       return { success: true };
     } catch (err: any) {
@@ -126,7 +178,6 @@ export function useShopFloor() {
     setLoading(true);
     try {
       let rpcData = null;
-      // 불량이 발생한 경우 RPC 호출하여 파생 오더 생성
       if (defectQty > 0) {
         const { data, error: rpcError } = await supabase.rpc('split_rework_order', {
           p_order_item_id: scannedPart.id,
@@ -134,13 +185,10 @@ export function useShopFloor() {
           p_defect_reason: defectReason,
           p_worker: workerName
         });
-        
         if (rpcError) throw rpcError;
         rpcData = data;
-        console.log('재작업 오더 생성됨:', rpcData);
       }
 
-      // 공정 로그 업데이트 (종료 시간 기록)
       const { error: updateError } = await supabase
         .from('process_logs')
         .update({
@@ -152,11 +200,82 @@ export function useShopFloor() {
 
       if (updateError) throw updateError;
       
+      // If the completed process was '출하', mark the order_item as DONE
+      if (scannedPart.currentProcess?.process_name === '출하') {
+        const { error: itemUpdateError } = await supabase
+          .from('order_items')
+          .update({ production_status: 'DONE', completed_at: new Date().toISOString() })
+          .eq('id', scannedPart.id);
+        if (itemUpdateError) throw itemUpdateError;
+      }
+      
       setCurrentLogId(null);
-      // 스캔 초기화 (작업이 끝났으므로 다음 바코드 대기)
       setScannedPart(null);
 
       return { success: true, rpcData };
+    } catch (err: any) {
+      console.error(err);
+      return { success: false, error: err.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 4. 외주 현장 발주
+  const createFieldOutsourceOrder = async (
+    supplierId: string, 
+    supplierName: string, 
+    processName: string,
+    workerName: string = '작업자'
+  ) => {
+    if (!scannedPart || !scannedPart.currentProcess) return { success: false, error: '선택된 공정이 없습니다.' };
+    
+    setLoading(true);
+    try {
+      const { data: outOrder, error: outError } = await supabase
+        .from('outsource_orders')
+        .insert({
+          order_item_id: scannedPart.id,
+          process_id: scannedPart.currentProcess.id,
+          supplier_id: supplierId,
+          supplier_name: supplierName,
+          process_name: processName,
+          quantity: scannedPart.qty,
+          outsource_type: 'FIELD',
+          status: '발주완료',
+          order_date: new Date().toISOString().split('T')[0]
+        })
+        .select()
+        .single();
+        
+      if (outError) throw outError;
+      
+      const { data: logData, error: logError } = await supabase
+        .from('process_logs')
+        .update({
+          status: '진행중',
+          worker: workerName,
+          outsource_id: outOrder.id,
+          start_time: new Date().toISOString()
+        })
+        .eq('id', scannedPart.currentProcess.id)
+        .select()
+        .single();
+        
+      if (logError) throw logError;
+      
+      setCurrentLogId(logData.id);
+      
+      setScannedPart(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          history: prev.history.map(log => log.id === logData.id ? { ...log, ...logData } : log),
+          currentProcess: { ...prev.currentProcess, ...logData }
+        };
+      });
+      
+      return { success: true };
     } catch (err: any) {
       console.error(err);
       return { success: false, error: err.message };
@@ -172,6 +291,7 @@ export function useShopFloor() {
     fetchPartByBarcode,
     startProcess,
     completeProcess,
+    createFieldOutsourceOrder,
     clearScan: () => { setScannedPart(null); setCurrentLogId(null); }
   };
 }

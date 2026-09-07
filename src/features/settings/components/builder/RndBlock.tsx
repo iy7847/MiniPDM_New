@@ -12,10 +12,11 @@ interface RndBlockProps {
   isPreview: boolean;
   updateBlock: (id: string, updates: Partial<TemplateBlock>) => void;
   deleteBlock: (id: string) => void;
+  zoom?: number;
 }
 
 export const RndBlock: React.FC<RndBlockProps> = ({ 
-  block, isSelected, onClick, form, isPreview, updateBlock, deleteBlock 
+  block, isSelected, onClick, form, isPreview, updateBlock, deleteBlock, zoom = 1
 }) => {
   if (isPreview) {
     return (
@@ -27,6 +28,7 @@ export const RndBlock: React.FC<RndBlockProps> = ({
 
   return (
     <Rnd
+      scale={zoom}
       size={{ width: block.width, height: block.height }}
       position={{ x: block.x, y: block.y }}
       onDragStop={(e, d) => updateBlock(block.id, { x: d.x, y: d.y })}

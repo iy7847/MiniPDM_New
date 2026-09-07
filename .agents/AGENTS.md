@@ -11,13 +11,11 @@
 
 | 파일 | 위치 | 설명 |
 |------|------|------|
-| **MEMORY.md** | `D:\06_Coding\AntiGravity\MiniPDM_New\.agents\MEMORY.md` | **[필수] 에이전트 자율 기억 저장소 (오답 노트 및 스키마 특이사항 기록)** |
-| **HANDOFF.md** | `D:\06_Coding\AntiGravity\MiniPDM_New\HANDOFF.md` | 이전 세션 작업 완료 내역 및 다음 세션 진행 목표 (인수인계서) |
-| **DIRECTIVE.md** | `D:\06_Coding\AntiGravity\MiniPDM_New\DIRECTIVE.md` | 전체 재구성 지침서 (디자인 시스템, 아키텍처, 화면 명세) |
-| **MINI_MES_PLAN.md** | `D:\06_Coding\AntiGravity\MiniPDM_New\docs\MINI_MES_PLAN.md` | **[필수] Phase 4 (수주/생산) Mini MES 아키텍처 및 구현 강제 지침서** |
-| **DESIGN.md** | `D:\06_Coding\AntiGravity\MiniPDM_New\DESIGN.md` | 디자인 분석 & v2.0 제안서 (컬러, 컴포넌트 Before/After, 구현 우선순위) |
-| **기존 앱 코드** | `D:\06_Coding\AntiGravity\MiniPDM\src\` | 기능 참조용 기존 소스코드 |
-| **Scales.md** | `D:\06_Coding\AntiGravity\MiniPDM\Scales.md` | 중량/비용 계산 공식 (변경 불가) |
+| **ARCHITECTURE.md** | `D:\06_Coding\AntiGravity\MiniPDM_New\docs\ARCHITECTURE.md` | **[최우선 종합 마스터 설계서] 디자인 토큰, 비즈니스 로직, 진척 로드맵 총집대성** |
+| **DB_SCHEMA.md** | `D:\06_Coding\AntiGravity\MiniPDM_New\.agents\DB_SCHEMA.md` | **[필수 DB 기준] Supabase 실제 테이블 & 컬럼 정의서 (Single Source of Truth)** |
+| **MEMORY.md** | `D:\06_Coding\AntiGravity\MiniPDM_New\.agents\MEMORY.md` | **[필수] 에이전트 자율 기억 저장소 (채번 규칙, 상태 전이, 오답 노트)** |
+| **HANDOFF.md** | `D:\06_Coding\AntiGravity\MiniPDM_New\HANDOFF.md` | **[인수인계서] 세션별 완료 작업 및 다음 작업 목표 관리** |
+| **Scales.md** | `D:\06_Coding\AntiGravity\MiniPDM\Scales.md` | **[단가/중량 공식] 중량/비용 계산 공식 (절대 수정 불가 레퍼런스)** |
 
 ---
 

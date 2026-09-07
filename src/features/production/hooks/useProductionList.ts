@@ -15,20 +15,94 @@ export function useProductionList() {
           *,
           files (*),
           estimate_items (
-            files (*)
+            files (*),
+            work_days
           ),
           orders!inner (
             id, po_no, order_date, status, client_id, delivery_date,
             clients ( name )
-          )
+          ),
+          process_logs ( * ),
+          outsource_orders ( * ),
+          material_orders ( status )
         `)
-        .in('orders.status', ['PRODUCTION', 'ORDERED', 'INSPECTION'])
+        .neq('orders.status', 'CANCELLED')
         .order('created_at', { ascending: false });
 
       if (fetchError) throw fetchError;
       
       if (data) {
         const formatted = data.map(item => {
+          let computedDate = item.due_date;
+          if (!computedDate && item.orders?.order_date) {
+            const workDays = item.work_days || item.estimate_items?.work_days || 3;
+            const dateObj = new Date(item.orders.order_date);
+            dateObj.setDate(dateObj.getDate() + workDays);
+            computedDate = dateObj.toISOString().slice(0, 10);
+          }
+
+          const rawLogs = (item.process_logs || []).sort((a: any, b: any) => (a.sequence_no || 999) - (b.sequence_no || 999));
+          const hasLogs = rawLogs.length > 0;
+          const completedLogs = rawLogs.filter((l: any) => l.status === '완료');
+          const activeLog = rawLogs.find((l: any) => l.status === '가공중' || l.status === '외주가공중');
+          const waitingLog = rawLogs.find((l: any) => l.status === '대기');
+
+          // 현재 공정 상태 계산
+          let currentProcess = null;
+          if (activeLog) {
+            currentProcess = {
+              name: activeLog.process_name,
+              status: activeLog.status,
+              type: activeLog.process_type,
+              worker: activeLog.worker,
+              is_outsource: activeLog.status === '외주가공중' || activeLog.process_type === 'OUTSOURCE',
+              is_active: true
+            };
+          } else if (completedLogs.length > 0 && waitingLog) {
+            currentProcess = {
+              name: waitingLog.process_name,
+              status: '대기',
+              type: waitingLog.process_type,
+              prev_name: completedLogs[completedLogs.length - 1].process_name,
+              is_outsource: waitingLog.process_type === 'OUTSOURCE',
+              is_active: false
+            };
+          } else if (waitingLog) {
+            currentProcess = {
+              name: waitingLog.process_name,
+              status: '대기',
+              type: waitingLog.process_type,
+              is_outsource: waitingLog.process_type === 'OUTSOURCE',
+              is_active: false
+            };
+          } else if (completedLogs.length > 0 && !waitingLog) {
+            currentProcess = {
+              name: '출하 대기',
+              status: '완료',
+              type: 'SYSTEM',
+              is_active: false
+            };
+          } else if (item.outsource_orders && item.outsource_orders.length > 0) {
+            const outOrder = item.outsource_orders[0];
+            currentProcess = {
+              name: outOrder.supplier_name ? `${outOrder.supplier_name}` : (outOrder.process_name || '외주 제작'),
+              status: outOrder.status || '발주대기',
+              type: 'OUTSOURCE',
+              supplier_name: outOrder.supplier_name,
+              is_outsource: true,
+              is_active: outOrder.status === '진행중' || outOrder.status === '발주완료'
+            };
+          }
+
+          // 공정이 하나라도 진행되었거나 외주 발주가 진행 중이면 자동으로 IN_PROGRESS로 보정
+          let effStatus = (item.production_status || 'PENDING').toUpperCase();
+          const hasOutsourceActive = item.outsource_orders?.some((o: any) => o.status === '발주완료' || o.status === '진행중');
+          if ((hasLogs && (activeLog || completedLogs.length > 0)) || (item.supply_type === 'OUTSOURCE' && hasOutsourceActive)) {
+            if (effStatus === 'PRODUCTION_READY' || effStatus === 'PENDING' || effStatus === 'OUTSOURCE_READY') {
+              effStatus = 'IN_PROGRESS';
+            }
+          }
+
           return {
             ...item,
             order: item.orders,
@@ -37,8 +111,11 @@ export function useProductionList() {
               ? (Array.isArray(item.orders.clients) ? item.orders.clients[0]?.name : (item.orders.clients as any)?.name)
               : '알 수 없음',
             po_no: item.orders?.po_no || '-',
-            delivery_date: item.due_date || item.orders?.delivery_date,
-            production_status: (item.production_status || 'PENDING').toUpperCase()
+            delivery_date: computedDate || item.orders?.delivery_date,
+            production_status: effStatus,
+            has_routing: hasLogs,
+            process_logs: rawLogs,
+            current_process: currentProcess
           };
         });
         setItems(formatted);
@@ -172,5 +249,5 @@ export function useProductionList() {
     }
   };
 
-  return { items, loading, error, updateItemSupplyConfig, transferToOutsourceOrPurchase, cancelProgress, reload: fetchItems };
+  return { items, loading, error, updateItemSupplyConfig, transferToOutsourceOrPurchase, cancelProgress, fetchItems };
 }

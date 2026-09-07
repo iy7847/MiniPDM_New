@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Plus, Trash2, Copy } from 'lucide-react';
 import { Button } from '@/design-system/Button';
 import { NumberInput } from '@/design-system/NumberInput';
+import { toast } from '../../../shared/stores/useToastStore';
 
 interface EstimateBatchDuplicateModalProps {
   onConfirm: (quantities: number[]) => void;
@@ -31,7 +32,7 @@ export const EstimateBatchDuplicateModal: React.FC<EstimateBatchDuplicateModalPr
   const handleConfirm = () => {
     const validQties = quantities.filter(q => q > 0);
     if (validQties.length === 0) {
-      alert('유효한 수량을 1개 이상 입력해주세요.');
+      toast.error('유효한 수량을 1개 이상 입력해주세요.');
       return;
     }
     onConfirm(validQties);

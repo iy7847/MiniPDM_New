@@ -42,7 +42,7 @@ interface EstimateDetailModalsProps {
   onSaveClient: (formData: ClientFormData) => Promise<void>;
   onMultiDuplicate: (quantities: number[]) => void;
   onExportExcel: () => void;
-  onConvertOrder?: (selectedItems: any[]) => Promise<void>;
+  onConvertOrder?: (selectedItems: any[], customTotalAmount: number) => Promise<void>;
   showForeign?: boolean;
 }
 
@@ -118,6 +118,7 @@ export const EstimateDetailModals = forwardRef<EstimateDetailModalsRef, Estimate
           metadata={metadata}
           currency={estimate?.currency || 'KRW'}
           exchangeRate={estimate?.base_exchange_rate || 1}
+          estimate={estimate}
           editingItem={editingItemForModal}
           onSaveSuccess={(item) => {
             if (editingItemForModal) {
@@ -227,9 +228,9 @@ export const EstimateDetailModals = forwardRef<EstimateDetailModalsRef, Estimate
           onClose={() => setIsOrderModalOpen(false)}
           estimate={estimate}
           items={items}
-          onConvert={async (selectedItemsToOrder) => {
+          onConvert={async (selectedItemsToOrder, customTotalAmount) => {
              if (props.onConvertOrder) {
-               await props.onConvertOrder(selectedItemsToOrder);
+               await props.onConvertOrder(selectedItemsToOrder, customTotalAmount);
              }
              setIsOrderModalOpen(false);
           }}

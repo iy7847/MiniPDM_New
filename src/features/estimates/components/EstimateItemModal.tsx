@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useConfirm } from '../../../app/providers/ConfirmProvider';
 import type { EstimateItem, EstimateMetadata } from '../types';
 import { createInitialItemForm } from '../types';
 import { calculateEstimate } from '../hooks/useEstimateCalculations';
 import { useEstimateItemDB } from '../hooks/useEstimateItemDB';
 import { SplitPaneModal } from '../../../design-system/SplitPaneModal';
+import { Toggle } from '../../../design-system/Toggle';
+import { toast } from '../../../shared/stores/useToastStore';
 import { EstimateItemHeaderDropZone } from './EstimateItemHeaderDropZone';
 import { EstimateItemRightPane } from './EstimateItemRightPane';
 import { EstimateItemLeftPane } from './EstimateItemLeftPane';
@@ -20,12 +23,16 @@ interface EstimateItemModalProps {
   onDeleteExistingFile: (fileId: string) => Promise<void>;
   existingItems?: EstimateItem[];
   isReadOnly?: boolean;
+  estimate?: any;
 }
+
+
 
 export const EstimateItemModal: React.FC<EstimateItemModalProps> = ({
   isOpen, onClose, estimateId, metadata, currency, exchangeRate,
-  editingItem, onSaveSuccess, onDeleteExistingFile, existingItems = [], isReadOnly = false
+  editingItem, onSaveSuccess, onDeleteExistingFile, existingItems = [], isReadOnly = false, estimate
 }) => {
+  const { confirm } = useConfirm();
   const [itemForm, setItemForm] = useState<EstimateItem>(createInitialItemForm());
   const [qtyInput, setQtyInput] = useState<string>('1');
   const [isManualPrice, setIsManualPrice] = useState(false);
@@ -102,6 +109,7 @@ export const EstimateItemModal: React.FC<EstimateItemModalProps> = ({
       heat_treatment_price: heatTreatments.find(h => h.id === itemForm.heat_treatment_id)?.price_per_kg || 0,
       post_process_price: postProcessings.find(p => p.id === itemForm.post_processing_id)?.price_per_kg || 0,
       outsource_cost: itemForm.outsource_cost || 0,
+      custom_costs: itemForm.custom_costs || {},
       profit_rate: itemForm.profit_rate || 0,
       qty_input: itemForm.qty || 1,
       discount_policy: companyInfo?.discount_policy_json,
@@ -112,33 +120,52 @@ export const EstimateItemModal: React.FC<EstimateItemModalProps> = ({
   }, [itemForm, materials, postProcessings, heatTreatments, companyInfo]);
 
   useEffect(() => {
-    if (!isManualPrice && calcResult.results.length > 0) {
+    if (calcResult.results.length > 0) {
       const res = calcResult.results[0];
-      const newUnitPrice = res.unit_price;
-      const newSupplyPrice = res.total_price;
+      
+      setItemForm(prev => {
+        const isManual = prev.unit_price > 0 && prev.calculated_price !== undefined && prev.unit_price !== prev.calculated_price;
+        const nextUnitPrice = isManual ? prev.unit_price : res.unit_price;
+        const nextSupplyPrice = nextUnitPrice * (prev.qty || 1);
 
-      if (
-        itemForm.calculated_price !== res.unit_price ||
-        itemForm.unit_price !== newUnitPrice || 
-        itemForm.supply_price !== newSupplyPrice ||
-        itemForm.material_cost !== calcResult.material_cost ||
-        itemForm.post_process_cost !== calcResult.post_process_cost ||
-        itemForm.heat_treatment_cost !== calcResult.heat_treatment_cost ||
-        itemForm.processing_cost !== calcResult.processing_cost
-      ) {
-        setItemForm(prev => ({
+        const material = materials.find(m => m.id === prev.material_id);
+        const hasValidDensity = (material?.density || 0) > 0;
+        const hasValidWeight = calcResult.weight > 0;
+        const canCalculateWeightCosts = hasValidDensity && hasValidWeight;
+
+        const nextMaterialCost = canCalculateWeightCosts ? calcResult.material_cost : prev.material_cost;
+        const nextHeatCost = prev.heat_treatment_id 
+          ? (canCalculateWeightCosts ? calcResult.heat_treatment_cost : prev.heat_treatment_cost)
+          : 0;
+        const nextPostCost = prev.post_processing_id
+          ? (canCalculateWeightCosts ? calcResult.post_process_cost : prev.post_process_cost)
+          : 0;
+
+        if (
+          prev.calculated_price === res.unit_price &&
+          prev.unit_price === nextUnitPrice && 
+          prev.supply_price === nextSupplyPrice &&
+          prev.material_cost === nextMaterialCost &&
+          prev.post_process_cost === nextPostCost &&
+          prev.heat_treatment_cost === nextHeatCost &&
+          prev.processing_cost === calcResult.processing_cost
+        ) {
+          return prev;
+        }
+
+        return {
           ...prev,
           calculated_price: res.unit_price,
-          unit_price: newUnitPrice,
-          supply_price: newSupplyPrice,
-          material_cost: calcResult.material_cost,
-          post_process_cost: calcResult.post_process_cost,
-          heat_treatment_cost: calcResult.heat_treatment_cost,
+          unit_price: nextUnitPrice,
+          supply_price: nextSupplyPrice,
+          material_cost: nextMaterialCost,
+          post_process_cost: nextPostCost,
+          heat_treatment_cost: nextHeatCost,
           processing_cost: calcResult.processing_cost,
-        }));
-      }
+        };
+      });
     }
-  }, [calcResult, isManualPrice]);
+  }, [calcResult, materials]);
 
   const handleSpecChange = (field: 'spec_w' | 'spec_d' | 'spec_h', value: number) => {
     let marginW = 5, marginD = 5, marginH = 0;
@@ -163,17 +190,17 @@ export const EstimateItemModal: React.FC<EstimateItemModalProps> = ({
   };
 
   const handleSave = async () => {
-    if (!estimateId) return alert('견적서 ID가 없습니다.');
-    if (!itemForm.part_name) return alert('품명은 필수입니다.');
+    if (!estimateId) { toast.error('견적서 ID가 없습니다.'); return; }
+    if (!itemForm.part_name) { toast.error('품명은 필수입니다.'); return; }
 
     const qty = parseInt(qtyInput.replace(/,/g, ''), 10);
-    if (isNaN(qty) || qty <= 0) return alert('유효한 수량을 입력해주세요.');
+    if (isNaN(qty) || qty <= 0) { toast.error('유효한 수량을 입력해주세요.'); return; }
 
     const finalUnitPrice = itemForm.unit_price;
     const { tempFiles, selected, ...cleanItemForm } = itemForm as any;
 
     if (!editingItem && existingItems.some(i => i.part_no === cleanItemForm.part_no)) {
-      if (!confirm(`이미 존재하는 도번입니다: ${cleanItemForm.part_no}\n그래도 등록하시겠습니까?`)) {
+      if (!(await confirm({ title: '중복 도번 알림', description: `이미 존재하는 도번입니다: ${cleanItemForm.part_no}\n그래도 등록하시겠습니까?`, isDanger: true }))) {
         return;
       }
     }
@@ -183,7 +210,7 @@ export const EstimateItemModal: React.FC<EstimateItemModalProps> = ({
       onSaveSuccess(payload);
       onClose();
     } catch (e: any) {
-      alert(`저장 중 오류가 발생했습니다: ${e.message}`);
+      toast.error(`저장 중 오류가 발생했습니다: ${e.message}`);
     }
   };
 
@@ -191,7 +218,7 @@ export const EstimateItemModal: React.FC<EstimateItemModalProps> = ({
     <SplitPaneModal
       isOpen={isOpen}
       onClose={onClose}
-      title={editingItem ? "품목 수정" : "새 품목 견적 산출"}
+      title={isReadOnly ? "상세 보기" : editingItem ? "품목 수정" : "새 품목 견적 산출"}
       initialLeftWidthPercent={30}
       leftPane={
         <EstimateItemLeftPane 
@@ -206,9 +233,10 @@ export const EstimateItemModal: React.FC<EstimateItemModalProps> = ({
           filteredMaterials={filteredMaterials} calcResult={calcResult}
           heatTreatments={heatTreatments} postProcessings={postProcessings}
           qtyInput={qtyInput} setQtyInput={setQtyInput} setIsManualPrice={setIsManualPrice}
+          estimate={estimate}
         />
       }
-      rightPane={<EstimateItemRightPane itemForm={itemForm} setItemForm={setItemForm} />}
+      rightPane={<EstimateItemRightPane itemForm={itemForm} setItemForm={setItemForm} isReadOnly={isReadOnly} />}
       headerExtra={<EstimateItemHeaderDropZone isReadOnly={isReadOnly} setItemForm={setItemForm} />}
     />
   );

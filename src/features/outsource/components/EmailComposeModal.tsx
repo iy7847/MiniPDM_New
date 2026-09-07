@@ -7,8 +7,6 @@ import type { ProcurementOrder } from '../hooks/useProcurementList';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { FileBadge } from '@/features/estimates/components/FileBadge';
 import { EXT_3D } from '@/shared/utils/fileMatching';
-import JSZip from 'jszip';
-import html2pdf from 'html2pdf.js';
 
 interface EmailComposeModalProps {
   isOpen: boolean;
@@ -110,8 +108,8 @@ export const EmailComposeModal: React.FC<EmailComposeModalProps> = ({
 
       // 1. 발주 품목 상세 HTML 생성 (테이블 형태)
       const tableRows = selectedOrders.map((order, idx) => {
-        const updateInfo = updates.find(u => u.id === order.id);
-        const qty = order.quantity;
+        const updateInfo = updates.find(u => u.id === order.id) as any;
+        const qty = updateInfo?.quantity ?? order.quantity;
         const isMaterial = order.type === 'MATERIAL';
         const price = updateInfo?.unit_price || order.unit_price || 0;
         const total = qty * price;
@@ -121,8 +119,10 @@ export const EmailComposeModal: React.FC<EmailComposeModalProps> = ({
         
         let displayPartNo = order.part_no || '-';
         let displayPartName = order.item_name || '-';
+        let spec = updateInfo?.spec ?? order.item_spec ?? '-';
+
         if (isMaterial) {
-          let shape = order.shape || '';
+          let shape = updateInfo?.shape ?? order.shape ?? '';
           
           // If shape is "일반 판재", just show "판재"
           if (shape.includes('일반 판재')) shape = '판재';
@@ -134,14 +134,14 @@ export const EmailComposeModal: React.FC<EmailComposeModalProps> = ({
         return `
           <tr>
             <td style="border: 1px solid #ccc; padding: 4px 8px; text-align: center;">${idx + 1}</td>
-            <td style="border: 1px solid #ccc; padding: 4px 8px; text-align: center;">
-              ${order.order_item_no ? `<img src="https://barcodeapi.org/api/code128/${order.order_item_no}" style="height: 24px; display: block; margin: 0 auto;" alt="바코드"/>` : '-'}
+            <td style="border: 1px solid #ccc; padding: 2px; text-align: center; vertical-align: middle;">
+              ${order.order_item_no ? `<img src="https://barcodeapi.org/api/code128/${order.order_item_no}" style="height: 40px; width: 100%; object-fit: contain; display: block; margin: 0 auto;" alt="바코드"/>` : '-'}
             </td>
             <td style="border: 1px solid #ccc; padding: 4px 8px;">
               <div style="font-weight: bold; margin-bottom: 2px;">${displayPartNo}</div>
               ${displayPartName ? `<div style="color: #666; font-size: 11px;">${displayPartName}</div>` : ''}
             </td>
-            <td style="border: 1px solid #ccc; padding: 4px 8px;">${order.item_spec || '-'}</td>
+            <td style="border: 1px solid #ccc; padding: 4px 8px;">${spec}</td>
             <td style="border: 1px solid #ccc; padding: 4px 8px; text-align: right;">${qtyDisplay}</td>
             <td style="border: 1px solid #ccc; padding: 4px 8px; text-align: right;">${priceDisplay}</td>
             <td style="border: 1px solid #ccc; padding: 4px 8px; text-align: right; font-weight: bold;">${totalDisplay}</td>
@@ -152,8 +152,8 @@ export const EmailComposeModal: React.FC<EmailComposeModalProps> = ({
 
       const totalOrderSum = selectedOrders.reduce((sum, order) => {
         if (order.type === 'MATERIAL') return sum;
-        const updateInfo = updates.find(u => u.id === order.id);
-        const qty = order.quantity || order.qty || 1;
+        const updateInfo = updates.find(u => u.id === order.id) as any;
+        const qty = updateInfo?.quantity ?? order.quantity ?? order.qty ?? 1;
         const price = updateInfo?.unit_price || order.unit_price || 0;
         return sum + (qty * price);
       }, 0);
@@ -163,7 +163,7 @@ export const EmailComposeModal: React.FC<EmailComposeModalProps> = ({
           <thead>
             <tr>
               <th style="border: 1px solid #ccc; padding: 6px 8px; background-color: #f9f9f9; width: 40px; text-align: center;">번호</th>
-              <th style="border: 1px solid #ccc; padding: 6px 8px; background-color: #f9f9f9; width: 100px; text-align: center;">바코드</th>
+              <th style="border: 1px solid #ccc; padding: 6px 8px; background-color: #f9f9f9; width: 130px; text-align: center;">바코드</th>
               <th style="border: 1px solid #ccc; padding: 6px 8px; background-color: #f9f9f9; text-align: left;">${selectedOrders.every(o => o.type === 'MATERIAL') ? '재질 (형태)' : '품번 / 품명'}</th>
               <th style="border: 1px solid #ccc; padding: 6px 8px; background-color: #f9f9f9; text-align: left;">규격</th>
               <th style="border: 1px solid #ccc; padding: 6px 8px; background-color: #f9f9f9; text-align: right;">수량</th>
@@ -202,6 +202,11 @@ export const EmailComposeModal: React.FC<EmailComposeModalProps> = ({
           ${itemDetailsHtml}
         </div>
       `;
+
+      // @ts-ignore
+      const html2pdf = (await import('html2pdf.js')).default;
+      // @ts-ignore
+      const JSZip = (await import('jszip')).default;
 
       const pdfBuffer = await html2pdf().set({
         margin: 10,
@@ -367,7 +372,7 @@ export const EmailComposeModal: React.FC<EmailComposeModalProps> = ({
                 <thead className="bg-gray-100 text-gray-700">
                   <tr>
                     <th className="px-2 py-1.5 border border-gray-300 font-bold w-10 text-center text-xs">번호</th>
-                    <th className="px-2 py-1.5 border border-gray-300 font-bold w-24 text-center text-xs">바코드</th>
+                    <th className="px-2 py-1.5 border border-gray-300 font-bold w-32 text-center text-xs">바코드</th>
                     <th className="px-2 py-1.5 border border-gray-300 font-bold text-xs text-left">{selectedOrders.every(o => o.type === 'MATERIAL') ? '재질 (형태)' : '품번 / 품명'}</th>
                     <th className="px-2 py-1.5 border border-gray-300 font-bold text-xs">규격</th>
                     <th className="px-2 py-1.5 border border-gray-300 font-bold text-right text-xs">수량</th>
@@ -378,16 +383,18 @@ export const EmailComposeModal: React.FC<EmailComposeModalProps> = ({
                 </thead>
                 <tbody>
                   {selectedOrders.map((order, idx) => {
-                    const qty = order.quantity || order.qty || 1;
-                    const price = updates.find(u => u.id === order.id)?.unit_price || 0;
+                    const updateInfo = updates.find(u => u.id === order.id) as any;
+                    const qty = updateInfo?.quantity ?? order.quantity ?? order.qty ?? 1;
+                    const price = updateInfo?.unit_price || 0;
                     const total = qty * price;
                     const isMaterial = order.type === 'MATERIAL';
                     
                     let displayPartNo = order.part_no || '-';
                     let displayPartName = order.item_name || '-';
+                    let spec = updateInfo?.spec ?? order.item_spec ?? '-';
                     
                     if (isMaterial) {
-                      let shape = order.shape || '';
+                      let shape = updateInfo?.shape ?? order.shape ?? '';
                       if (shape.includes('일반 판재')) shape = '판재';
                       
                       displayPartNo = `${order.item_name || '-'}${shape ? `[${shape}]` : ''}`;
@@ -396,21 +403,21 @@ export const EmailComposeModal: React.FC<EmailComposeModalProps> = ({
 
                     return (
                       <tr key={order.id} className="hover:bg-gray-50 text-xs">
-                        <td className="px-2 py-1.5 border border-gray-300 text-center">{idx + 1}</td>
-                        <td className="px-2 py-1.5 border border-gray-300 text-center">
+                        <td className="px-2 py-1.5 border border-gray-300 text-center align-middle">{idx + 1}</td>
+                        <td className="px-1 py-1 border border-gray-300 text-center align-middle">
                           {order.order_item_no ? (
-                            <img src={`https://barcodeapi.org/api/code128/${order.order_item_no}`} alt="바코드" className="h-6 object-contain block mx-auto" />
+                            <img src={`https://barcodeapi.org/api/code128/${order.order_item_no}`} alt="바코드" className="w-full h-10 object-contain block mx-auto" />
                           ) : '-'}
                         </td>
-                        <td className="px-2 py-1.5 border border-gray-300">
+                        <td className="px-2 py-1.5 border border-gray-300 align-middle">
                           <div className="font-bold text-gray-900 text-[11px] mb-0.5">{displayPartNo}</div>
                           {displayPartName && <div className="text-gray-600 font-medium">{displayPartName}</div>}
                         </td>
-                        <td className="px-2 py-1.5 border border-gray-300 text-gray-600">{order.item_spec}</td>
+                        <td className="px-2 py-1.5 border border-gray-300 text-gray-600">{spec}</td>
                         <td className="px-2 py-1.5 border border-gray-300 text-right">{qty === 0 ? '-' : qty}</td>
                         <td className="px-2 py-1.5 border border-gray-300 text-right">{(price === 0 || isMaterial) ? '-' : `₩${price.toLocaleString()}`}</td>
                         <td className="px-2 py-1.5 border border-gray-300 text-right font-medium">{(total === 0 || isMaterial) ? '-' : `₩${total.toLocaleString()}`}</td>
-                        <td className="px-2 py-1.5 border border-gray-300 text-[10px] text-gray-500">{updates.find(u => u.id === order.id)?.note || ''}</td>
+                        <td className="px-2 py-1.5 border border-gray-300 text-[10px] text-gray-500">{updateInfo?.note || ''}</td>
                       </tr>
                     );
                   })}
@@ -422,7 +429,8 @@ export const EmailComposeModal: React.FC<EmailComposeModalProps> = ({
                       {(() => {
                         const sum = selectedOrders.reduce((sum, order) => {
                           if (order.type === 'MATERIAL') return sum;
-                          return sum + ((order.quantity || order.qty || 1) * (updates.find(u => u.id === order.id)?.unit_price || 0));
+                          const updateInfo = updates.find(u => u.id === order.id) as any;
+                          return sum + ((updateInfo?.quantity ?? order.quantity ?? order.qty ?? 1) * (updateInfo?.unit_price || 0));
                         }, 0);
                         return sum === 0 ? '-' : `₩${sum.toLocaleString()}`;
                       })()}

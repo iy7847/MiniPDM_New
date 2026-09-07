@@ -10,6 +10,9 @@ interface DocumentMaskingModalProps {
   file: any; // File | DB Object
   onSaveMaskedPdf: (newFile: File) => void;
   isViewerOnly?: boolean;
+  autoCloseOnSave?: boolean;
+  title?: React.ReactNode;
+  headerActions?: React.ReactNode;
 }
 
 export const DocumentMaskingModal: React.FC<DocumentMaskingModalProps> = ({
@@ -17,7 +20,10 @@ export const DocumentMaskingModal: React.FC<DocumentMaskingModalProps> = ({
   onClose,
   file,
   onSaveMaskedPdf,
-  isViewerOnly = false
+  isViewerOnly = false,
+  autoCloseOnSave = true,
+  title,
+  headerActions
 }) => {
   const [actualFile, setActualFile] = React.useState<File | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
@@ -68,14 +74,17 @@ export const DocumentMaskingModal: React.FC<DocumentMaskingModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-border-default shrink-0">
           <h2 className="text-lg font-bold text-text-primary">
-            {isViewerOnly ? '도면 뷰어' : '도면 뷰어 및 마스킹 (보안 처리)'}
+            {title ? title : (isViewerOnly ? '도면 뷰어' : '도면 뷰어 및 마스킹 (보안 처리)')}
           </h2>
-          <button 
-            onClick={onClose} 
-            className="p-1 text-text-secondary hover:text-text-primary hover:bg-bg-elevated rounded"
-          >
-            <X size={24} />
-          </button>
+          <div className="flex items-center gap-2">
+            {headerActions}
+            <button 
+              onClick={onClose} 
+              className="p-1 text-text-secondary hover:text-text-primary hover:bg-bg-elevated rounded"
+            >
+              <X size={24} />
+            </button>
+          </div>
         </div>
 
         {/* Body */}
@@ -91,7 +100,9 @@ export const DocumentMaskingModal: React.FC<DocumentMaskingModalProps> = ({
               isViewerOnly={isViewerOnly}
               onSaveMaskedPdf={(newFile) => {
                 onSaveMaskedPdf(newFile);
-                onClose();
+                if (autoCloseOnSave) {
+                  onClose();
+                }
               }}
             />
           )}

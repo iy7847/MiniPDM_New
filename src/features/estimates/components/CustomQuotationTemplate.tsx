@@ -4,6 +4,7 @@ import type { CustomTemplate } from '../../settings/services/settingsService';
 import type { TemplateBlock, ItemTableBlock } from '../../settings/types/templateBuilder';
 import { supabase } from '../../../shared/services/supabase';
 import { numberToKoreanAmount } from '../utils/amountFormatters';
+import { QRCodeSVG } from 'qrcode.react';
 
 interface CustomQuotationTemplateProps {
   companyInfo: any;
@@ -67,6 +68,20 @@ export const CustomQuotationTemplate = React.forwardRef<HTMLDivElement, CustomQu
     };
     loadImages();
   }, [companyInfo]);
+
+  const [watermarkSrc, setWatermarkSrc] = useState<string | null>(null);
+  useEffect(() => {
+    const wmPath = template.layout_json?.watermark?.imagePath;
+    if (wmPath) {
+      if (wmPath.startsWith('data:') || wmPath.startsWith('http') || wmPath.startsWith('blob:') || wmPath.startsWith('C:') || wmPath.startsWith('D:')) {
+        setWatermarkSrc(getLocalImagePath(wmPath));
+      } else {
+        // Just in case it's a supabase path
+        const { data } = supabase.storage.from('company_assets').getPublicUrl(wmPath);
+        setWatermarkSrc(data.publicUrl);
+      }
+    }
+  }, [template.layout_json?.watermark?.imagePath]);
 
   const currency = estimate.currency || 'KRW';
   const isForeign = currency !== 'KRW';
@@ -262,9 +277,49 @@ export const CustomQuotationTemplate = React.forwardRef<HTMLDivElement, CustomQu
         );
 
       case 'free_text':
+        let textContent = b.text || '';
+        textContent = textContent.replace(/{고객사명}/g, clientInfo?.name || '');
+        textContent = textContent.replace(/{견적총액}/g, totalAmount.toLocaleString());
+        textContent = textContent.replace(/{견적번호}/g, estimate.estimate_no || '');
+        textContent = textContent.replace(/{작성일자}/g, estimate.estimate_date || '');
         return (
-          <div key={b.id} style={{ ...style, fontSize: b.fontSize, textAlign: b.align || 'left' }} className="whitespace-pre-wrap">
-            {b.content}
+          <div key={b.id} style={{ ...style, fontSize: b.fontSize, textAlign: b.align || 'left', fontWeight: b.fontWeight || 'normal' }} className="whitespace-pre-wrap">
+            {textContent}
+          </div>
+        );
+
+      case 'approval_line':
+        const titles = b.titles || ['담당', '검토', '승인'];
+        const boxWidth = b.boxWidth || 60;
+        return (
+          <div key={b.id} style={style} className="flex h-full border border-gray-400 bg-white w-fit">
+            <div className="w-6 border-r border-gray-400 flex items-center justify-center bg-gray-100">
+              <span className="text-[10px] font-bold" style={{ writingMode: 'vertical-rl' }}>결재</span>
+            </div>
+            {titles.map((title: string, i: number) => (
+              <div key={i} className={`flex flex-col ${i < titles.length - 1 ? 'border-r border-gray-400' : ''}`} style={{ width: boxWidth }}>
+                <div className="h-6 border-b border-gray-400 flex items-center justify-center bg-gray-50 text-[10px] font-bold">
+                  {title}
+                </div>
+                <div className="flex-1 flex items-center justify-center"></div>
+              </div>
+            ))}
+          </div>
+        );
+
+      case 'qrcode':
+        let qrValue = '';
+        if (b.valueType === 'estimate_no') {
+          qrValue = estimate.estimate_no || '';
+        } else if (b.valueType === 'project_name') {
+          qrValue = estimate.project_name || '';
+        } else if (b.valueType === 'company_info') {
+          qrValue = `BEGIN:VCARD\nVERSION:3.0\nN:${companyInfo?.name || ''}\nFN:${companyInfo?.name || ''}\nORG:${companyInfo?.name || ''}\nTEL:${companyInfo?.phone || ''}\nEMAIL:${companyInfo?.email || ''}\nEND:VCARD`;
+        }
+        if (!qrValue) return null;
+        return (
+          <div key={b.id} style={style} className="flex items-center justify-center">
+            <QRCodeSVG value={qrValue} size={b.size || 60} />
           </div>
         );
 
@@ -274,13 +329,20 @@ export const CustomQuotationTemplate = React.forwardRef<HTMLDivElement, CustomQu
   };
 
   const renderTable = (block: ItemTableBlock, pageItems: EstimateItem[], pageIndex: number) => {
+    let expandedColumns: string[] = [];
+    block.columns.forEach(col => {
+      expandedColumns.push(col);
+    });
+
     return (
       <div key={block.id} style={{ position: 'absolute', left: block.x, top: block.y, width: block.width, height: block.height, fontSize: block.fontSize || 11 }}>
         <table className={`w-full border-collapse ${block.theme === 'striped' ? 'table-striped' : ''}`}>
           <thead>
-            <tr className="bg-gray-100">
-              {block.columns.map((col, i) => (
-                <th key={i} className={`border border-gray-300 p-2 text-center ${col === 'No.' ? 'w-12' : ''}`}>{col}</th>
+            <tr style={{ backgroundColor: block.headerBgColor || '#f3f4f6' }}>
+              {expandedColumns.map((col, i) => (
+                <th key={i} className={`border border-gray-300 p-2 text-center ${col === 'No.' ? 'w-12' : ''}`} style={{ height: block.rowHeight || 28 }}>
+                  {col.startsWith('(커스텀) ') ? col.replace('(커스텀) ', '') : col}
+                </th>
               ))}
             </tr>
           </thead>
@@ -289,18 +351,25 @@ export const CustomQuotationTemplate = React.forwardRef<HTMLDivElement, CustomQu
               const globalIndex = pageIndex * itemsPerPage + index + 1;
               return (
                 <tr key={index} className="border-b border-gray-200">
-                  {block.columns.map((col, i) => {
+                  {expandedColumns.map((col, i) => {
                     let val: React.ReactNode = '';
                     if (col === 'No.') val = globalIndex;
                     else if (col === '품명') val = item.part_name;
                     else if (col === '품번') val = item.part_no;
                     else if (col === '규격') val = item.shape === 'round' ? `⌀${item.spec_w} x ${item.spec_d}L` : `${item.spec_w || 0}x${item.spec_d || 0}x${item.spec_h || 0}`;
                     else if (col === '재질') val = item.original_material_name || item.material_name || '-';
+                    else if (col === '단위') val = 'EA';
                     else if (col === '수량') val = item.qty;
                     else if (col === '단가') val = (item.unit_price || 0).toLocaleString(undefined, fractionOpts);
                     else if (col === '공급가액') val = (item.supply_price || 0).toLocaleString(undefined, fractionOpts);
                     else if (col === '비고') val = item.note;
-                    return <td key={i} className={`border border-gray-300 p-1.5 ${['수량', '단가', '공급가액'].includes(col) ? 'text-right' : 'text-center'}`}>{val}</td>;
+                    else if (col.startsWith('(커스텀) ')) {
+                      const realCol = col.replace('(커스텀) ', '');
+                      const customCost = item.custom_costs?.[realCol] || 0;
+                      val = customCost.toLocaleString(undefined, fractionOpts);
+                    }
+                    
+                    return <td key={i} className={`border border-gray-300 p-1.5 ${['수량', '단가', '공급가액'].includes(col) || col.startsWith('(커스텀) ') ? 'text-right' : 'text-center'}`} style={{ height: block.rowHeight || 28 }}>{val}</td>;
                   })}
                 </tr>
               );
@@ -308,8 +377,8 @@ export const CustomQuotationTemplate = React.forwardRef<HTMLDivElement, CustomQu
             {/* Fill empty rows if needed to keep height consistent */}
             {pageItems.length < itemsPerPage && Array.from({ length: itemsPerPage - pageItems.length }).map((_, i) => (
               <tr key={`empty-${i}`}>
-                {block.columns.map((col, j) => (
-                  <td key={j} className={`border border-gray-300 p-1.5 ${col === 'No.' ? 'text-center text-transparent' : ''}`}>{col === 'No.' ? '-' : ''}</td>
+                {expandedColumns.map((col, j) => (
+                  <td key={j} className={`border border-gray-300 p-1.5 ${col === 'No.' ? 'text-center text-transparent' : ''}`} style={{ height: block.rowHeight || 28 }}>{col === 'No.' ? '-' : ''}</td>
                 ))}
               </tr>
             ))}
@@ -319,6 +388,13 @@ export const CustomQuotationTemplate = React.forwardRef<HTMLDivElement, CustomQu
     );
   };
 
+  const orientation = template.layout_json?.orientation || 'portrait';
+  const wrapperClass = orientation === 'landscape' 
+    ? "w-[1123px] h-[794px] bg-white text-black font-sans leading-normal relative box-border overflow-hidden print:w-[297mm] print:h-[210mm] print:overflow-hidden"
+    : "w-[794px] h-[1122px] bg-white text-black font-sans leading-normal relative box-border overflow-hidden print:w-[210mm] print:h-[297mm] print:overflow-hidden";
+  
+  const watermarkConf = template.layout_json?.watermark;
+
   const pages = Array.from({ length: totalPages }).map((_, pageIndex) => {
     const isFirstPage = pageIndex === 0;
     const isLastPage = pageIndex === totalPages - 1;
@@ -327,24 +403,37 @@ export const CustomQuotationTemplate = React.forwardRef<HTMLDivElement, CustomQu
     return (
       <div 
         key={pageIndex} 
-        className="w-[794px] h-[1122px] bg-white text-black font-sans leading-normal relative box-border overflow-hidden print:w-[210mm] print:h-[297mm] print:overflow-hidden"
+        className={wrapperClass}
         style={{ pageBreakAfter: isLastPage ? 'auto' : 'always', margin: '0' }}
       >
-        {/* Render Header blocks only on first page */}
-        {headerBlocks.map(b => renderBlock(b, pageIndex, isFirstPage, isLastPage))}
-        
-        {/* Render Body blocks on all pages */}
-        {bodyBlocks.map(b => renderBlock(b, pageIndex, isFirstPage, isLastPage))}
-        
-        {/* Render Table block */}
-        {tableBlock && renderTable(tableBlock, pageItems, pageIndex)}
-        
-        {/* Render Footer blocks only on last page */}
-        {footerBlocks.map(b => renderBlock(b, pageIndex, isFirstPage, isLastPage))}
+        {/* 내부 컨텐츠를 96%로 축소하여 상하좌우 약 5mm 이상의 안전 여백(Safe Zone) 확보 */}
+        <div className="w-full h-full" style={{ transform: 'scale(0.96)', transformOrigin: 'center' }}>
+          {watermarkConf?.show && watermarkSrc && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ opacity: watermarkConf.opacity || 0.1, zIndex: 5 }}>
+              <img 
+                src={watermarkSrc} 
+                alt="watermark" 
+                className="max-w-full max-h-full object-contain"
+                style={{
+                  transform: `scale(${watermarkConf.scale || 1}) rotate(${watermarkConf.rotation || 0}deg)`
+                }}
+              />
+            </div>
+          )}
 
-        {/* Page Numbering */}
-        <div className="absolute bottom-4 left-0 w-full text-center text-[10px] text-gray-400">
-          - {pageIndex + 1} / {totalPages} -
+          <div className="relative z-10 w-full h-full">
+            {/* Render Header blocks only on first page */}
+            {headerBlocks.map(b => renderBlock(b, pageIndex, isFirstPage, isLastPage))}
+            
+            {/* Render Body blocks on all pages */}
+            {bodyBlocks.map(b => renderBlock(b, pageIndex, isFirstPage, isLastPage))}
+            
+            {/* Render Table block */}
+            {tableBlock && renderTable(tableBlock, pageItems, pageIndex)}
+            
+            {/* Render Footer blocks only on last page */}
+            {footerBlocks.map(b => renderBlock(b, pageIndex, isFirstPage, isLastPage))}
+          </div>
         </div>
       </div>
     );

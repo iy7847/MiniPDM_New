@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/shared/services/supabase';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { toast } from '@/shared/stores/useToastStore';
 
 export type ProcurementTab = 'STATUS' | 'OUTSOURCE' | 'PURCHASE' | 'MATERIAL';
 export type ProcurementType = 'OUTSOURCE' | 'PURCHASE' | 'MATERIAL';
@@ -19,11 +20,18 @@ export interface ProcurementOrder {
   quantity: number;
   received_qty: number;
   unit_price: number;
+  actual_unit_price?: number | null;
+  actual_total_price?: number | null;
   status: string;
   order_date: string;
+  expected_date?: string;
+  received_date?: string;
+  updated_at?: string;
   read_at?: string;
   order_item_no?: string;
   shape?: string;
+  origin: 'ADMIN' | 'FIELD'; // 관리직 발주 vs 현장 발주
+  outsource_type?: string;
   files: any[];
   raw_data: any;
   items?: {
@@ -51,28 +59,47 @@ export function useProcurementList(activeTab: ProcurementTab) {
 
       // 1. 발주 현황 (STATUS): outsource_orders 와 material_orders 에서 발주대기가 아닌 모든 건 조회
       if (activeTab === 'STATUS') {
-        const [outRes, matRes] = await Promise.all([
+        let [outRes, matRes] = await Promise.all([
           supabase
             .from('outsource_orders')
             .select(`
-              id, order_item_id, supplier_id, supplier_name, process_name, quantity, received_qty, unit_price, status, order_date, expected_date, read_at,
-              order_items ( id, part_name, part_no, order_item_no, spec, material_name, files ( id, file_name, file_path, original_name ) )
+              id, order_item_id, supplier_id, supplier_name, process_name, quantity, received_qty, unit_price, actual_unit_price, actual_total_price, status, order_date, expected_date, received_date, updated_at, read_at, outsource_type,
+              order_items!inner ( id, part_name, part_no, order_item_no, spec, material_name, supply_type, files ( id, file_name, file_path, original_name ), estimate_items ( shape ) )
             `)
             .neq('status', '발주대기')
             .order('created_at', { ascending: false }),
           supabase
             .from('material_orders')
             .select(`
-              id, order_item_id, supplier_id, supplier_name, material_name, spec, quantity, received_qty, unit_price, status, order_date, expected_date, read_at, po_receipt_token, po_no, shape,
-              order_items ( id, part_name, part_no, order_item_no, spec, material_spec, material_name, files ( id, file_name, file_path, original_name ) ),
-              material_order_items (
-                required_qty,
-                order_items!fk_material_order_items_order_item ( id, part_name, part_no, order_item_no, spec, material_spec, material_name, files ( id, file_name, file_path, original_name ) )
-              )
+              id, order_item_id, supplier_id, supplier_name, material_name, spec, quantity, received_qty, unit_price, actual_unit_price, actual_total_price, status, order_date, expected_date, received_date, updated_at, read_at, po_receipt_token, shape, estimated_price, po_no,
+              order_items!inner ( id, part_name, part_no, order_item_no, spec, material_spec, material_name, files ( id, file_name, file_path, original_name ), estimate_items ( shape ) )
             `)
             .neq('status', '발주대기')
             .order('created_at', { ascending: false })
         ]);
+
+        // DB 마이그레이션 전 fallback (컬럼 없음 42703 에러 방어)
+        if (outRes.error) {
+          outRes = await supabase
+            .from('outsource_orders')
+            .select(`
+              id, order_item_id, supplier_id, supplier_name, process_name, quantity, received_qty, unit_price, status, order_date, expected_date, received_date, updated_at, read_at, outsource_type,
+              order_items!inner ( id, part_name, part_no, order_item_no, spec, material_name, supply_type, files ( id, file_name, file_path, original_name ), estimate_items ( shape ) )
+            `)
+            .neq('status', '발주대기')
+            .order('created_at', { ascending: false });
+        }
+
+        if (matRes.error) {
+          matRes = await supabase
+            .from('material_orders')
+            .select(`
+              id, order_item_id, supplier_id, supplier_name, material_name, spec, quantity, received_qty, unit_price, status, order_date, expected_date, received_date, updated_at, read_at, po_receipt_token, shape, estimated_price, po_no,
+              order_items!inner ( id, part_name, part_no, order_item_no, spec, material_spec, material_name, files ( id, file_name, file_path, original_name ), estimate_items ( shape ) )
+            `)
+            .neq('status', '발주대기')
+            .order('created_at', { ascending: false });
+        }
 
         if (outRes.error) throw outRes.error;
         if (matRes.error) throw matRes.error;
@@ -82,14 +109,27 @@ export function useProcurementList(activeTab: ProcurementTab) {
       } 
       // 2. 개별 발주 탭: 발주대기 상태인 건만 조회
       else if (activeTab === 'OUTSOURCE' || activeTab === 'PURCHASE') {
-        const { data, error } = await supabase
+        let { data, error } = await supabase
           .from('outsource_orders')
           .select(`
-            id, order_item_id, supplier_id, supplier_name, process_name, quantity, received_qty, unit_price, status, order_date, expected_date, read_at,
-            order_items ( id, part_name, part_no, order_item_no, spec, material_name, files ( id, file_name, file_path, original_name ) )
+            id, order_item_id, supplier_id, supplier_name, process_name, quantity, received_qty, unit_price, actual_unit_price, actual_total_price, status, order_date, expected_date, received_date, updated_at, read_at, outsource_type,
+            order_items!inner ( id, part_name, part_no, order_item_no, spec, material_name, supply_type, files ( id, file_name, file_path, original_name ), estimate_items ( shape ) )
           `)
           .eq('status', '발주대기')
           .order('created_at', { ascending: false });
+
+        if (error) {
+          const fallbackRes = await supabase
+            .from('outsource_orders')
+            .select(`
+              id, order_item_id, supplier_id, supplier_name, process_name, quantity, received_qty, unit_price, status, order_date, expected_date, received_date, updated_at, read_at, outsource_type,
+              order_items!inner ( id, part_name, part_no, order_item_no, spec, material_name, supply_type, files ( id, file_name, file_path, original_name ), estimate_items ( shape ) )
+            `)
+            .eq('status', '발주대기')
+            .order('created_at', { ascending: false });
+          data = fallbackRes.data;
+          error = fallbackRes.error;
+        }
 
         if (error) throw error;
         
@@ -102,51 +142,72 @@ export function useProcurementList(activeTab: ProcurementTab) {
         outsourceData = filtered;
       } 
       else if (activeTab === 'MATERIAL') {
-        const { data, error } = await supabase
+        let { data, error } = await supabase
           .from('material_orders')
           .select(`
-            id, order_item_id, supplier_id, supplier_name, material_name, spec, quantity, received_qty, unit_price, status, order_date, expected_date, read_at, po_receipt_token, shape, estimated_price, po_no,
-            order_items ( id, part_name, part_no, order_item_no, spec, material_name, material_id, files ( id, file_name, file_path, original_name ) ),
-            material_order_items (
-              required_qty,
-              order_items!fk_material_order_items_order_item ( id, part_name, part_no, order_item_no, spec, material_spec, material_name, material_id, files ( id, file_name, file_path, original_name ) )
-            )
+            id, order_item_id, supplier_id, supplier_name, material_name, spec, quantity, received_qty, unit_price, actual_unit_price, actual_total_price, status, order_date, expected_date, received_date, updated_at, read_at, po_receipt_token, shape, estimated_price, po_no,
+            order_items!inner ( id, part_name, part_no, order_item_no, spec, material_spec, material_name, material_id, files ( id, file_name, file_path, original_name ), estimate_items ( shape ) )
           `)
           .eq('status', '발주대기')
           .order('created_at', { ascending: false });
+
+        if (error) {
+          const fallbackRes = await supabase
+            .from('material_orders')
+            .select(`
+              id, order_item_id, supplier_id, supplier_name, material_name, spec, quantity, received_qty, unit_price, status, order_date, expected_date, received_date, updated_at, read_at, po_receipt_token, shape, estimated_price, po_no,
+              order_items!inner ( id, part_name, part_no, order_item_no, spec, material_spec, material_name, material_id, files ( id, file_name, file_path, original_name ), estimate_items ( shape ) )
+            `)
+            .eq('status', '발주대기')
+            .order('created_at', { ascending: false });
+          data = fallbackRes.data;
+          error = fallbackRes.error;
+        }
 
         if (error) throw error;
         materialData = data || [];
       }
 
       // 데이터 매핑
-      const mappedOutsource = outsourceData.map((d: any) => ({
-        id: d.id,
-        type: d.process_name === '기성품 구매' ? 'PURCHASE' : 'OUTSOURCE' as ProcurementType,
-        po_no: d.id.substring(0, 8).toUpperCase(),
-        order_item_id: d.order_item_id,
-        supplier_id: d.supplier_id,
-        supplier_name: d.supplier_name,
-        item_name: d.order_items?.part_name || '-',
-        part_no: d.order_items?.part_no || '-',
-        item_spec: d.order_items?.spec || '-',
-        order_item_no: d.order_items?.order_item_no,
-        process_name: d.process_name || '-',
-        quantity: d.quantity,
-        received_qty: d.received_qty || 0,
-        unit_price: d.unit_price || 0,
-        status: d.status,
-        order_date: d.order_date,
-        expected_date: d.expected_date,
-        read_at: d.read_at,
-        files: Array.isArray(d.order_items?.files) ? d.order_items.files : [],
-        raw_data: d
-      }));
+      const mappedOutsource = outsourceData.map((d: any) => {
+        const isField = 
+          d.outsource_type === 'FIELD' || 
+          d.outsource_type === 'INTERMEDIATE' || 
+          d.order_items?.supply_type === 'INHOUSE';
+
+        return {
+          id: d.id,
+          type: d.process_name === '기성품 구매' ? 'PURCHASE' : 'OUTSOURCE' as ProcurementType,
+          po_no: d.order_items?.order_item_no || d.id.substring(0, 8).toUpperCase(),
+          order_item_id: d.order_item_id,
+          supplier_id: d.supplier_id,
+          supplier_name: d.supplier_name,
+          item_name: d.order_items?.part_name || '-',
+          part_no: d.order_items?.part_no || '-',
+          item_spec: d.order_items?.spec || '-',
+          order_item_no: d.order_items?.order_item_no,
+          process_name: d.process_name || '-',
+          quantity: d.quantity,
+          received_qty: d.received_qty || 0,
+          unit_price: d.unit_price || 0,
+          actual_unit_price: d.actual_unit_price !== null && d.actual_unit_price !== undefined ? Number(d.actual_unit_price) : null,
+          actual_total_price: d.actual_total_price !== null && d.actual_total_price !== undefined ? Number(d.actual_total_price) : null,
+          status: d.status,
+          order_date: d.order_date,
+          expected_date: d.expected_date,
+          received_date: d.received_date,
+          updated_at: d.updated_at,
+          read_at: d.read_at,
+          origin: (isField ? 'FIELD' : 'ADMIN') as 'ADMIN' | 'FIELD',
+          outsource_type: d.outsource_type,
+          files: Array.isArray(d.order_items?.files) ? d.order_items.files : [],
+          original_shape: d.order_items?.estimate_items?.shape || '',
+          raw_data: d
+        };
+      });
 
       const mappedMaterial = materialData.map((d: any) => {
-        // Fallback for legacy data that used material_order_items
-        const legacyItem = d.material_order_items?.[0]?.order_items;
-        const oi = d.order_items || legacyItem;
+        const oi = d.order_items;
         const files = Array.isArray(oi?.files) ? oi.files : [];
         const rawPartNo = oi?.part_no || '-';
         const displayPartNo = rawPartNo !== '-' ? `[M]${rawPartNo}` : '-';
@@ -158,27 +219,38 @@ export function useProcurementList(activeTab: ProcurementTab) {
           displayOrderItemNo = displayOrderItemNo.replace('TEMP-', 'M-TEMP-');
         }
 
+        let finalPoNo = displayOrderItemNo;
+        if (finalPoNo === '-') {
+          finalPoNo = d.po_no || d.id.substring(0, 8).toUpperCase();
+        }
+
         return {
           id: d.id,
           type: 'MATERIAL' as ProcurementType,
-          po_no: d.po_no || d.id.substring(0, 8).toUpperCase(),
+          po_no: finalPoNo,
           order_item_id: d.order_item_id || oi?.id || '',
           supplier_id: d.supplier_id,
           supplier_name: d.supplier_name,
           item_name: d.material_name || '-',
           part_no: displayPartNo,
-          item_spec: d.spec || '-', // 원소재 치수
+          item_spec: d.spec || oi?.material_spec || '-', // 원소재 치수
           shape: d.shape || '',
           order_item_no: displayOrderItemNo,
           process_name: '원소재 발주',
           quantity: d.quantity,
           received_qty: d.received_qty || 0,
           unit_price: d.unit_price || 0,
+          actual_unit_price: d.actual_unit_price !== null && d.actual_unit_price !== undefined ? Number(d.actual_unit_price) : null,
+          actual_total_price: d.actual_total_price !== null && d.actual_total_price !== undefined ? Number(d.actual_total_price) : null,
           status: d.status,
           order_date: d.order_date,
           expected_date: d.expected_date,
+          received_date: d.received_date,
+          updated_at: d.updated_at,
           read_at: d.read_at,
+          origin: 'ADMIN' as const,
           files: files,
+          original_shape: oi?.estimate_items?.shape || '',
           raw_data: d
         };
       });
@@ -233,9 +305,98 @@ export function useProcurementList(activeTab: ProcurementTab) {
     }
   };
 
+  const undoReceivingOrders = async (orderIds: string[]) => {
+    try {
+      setLoading(true);
+      const targetOrders = orders.filter(o => orderIds.includes(o.id));
+      const outsourceIds = targetOrders.filter(o => o.type !== 'MATERIAL').map(o => o.id);
+      const materialIds = targetOrders.filter(o => o.type === 'MATERIAL').map(o => o.id);
+
+      // --- 비즈니스 로직 방어: 이후 공정이 진행 중인지 확인 ---
+      for (const order of targetOrders) {
+        if (!order.order_item_id) continue;
+
+        // 1. 완제품 출하 완료(DONE) 상태인지 확인
+        const { data: itemData } = await supabase
+          .from('order_items')
+          .select('production_status')
+          .eq('id', order.order_item_id)
+          .single();
+        
+        if (itemData?.production_status === 'DONE') {
+          throw new Error(`[${order.item_name}] 품목은 이미 생산(출하)이 완료되어 입고를 취소할 수 없습니다.`);
+        }
+
+        // 2. 후속 공정(process_logs) 진행 여부 확인
+        const { data: logs } = await supabase
+          .from('process_logs')
+          .select('id, process_name, sequence_no, status')
+          .eq('order_item_id', order.order_item_id)
+          .order('sequence_no', { ascending: true });
+        
+        if (logs && logs.length > 0) {
+          if (order.type === 'MATERIAL') {
+            const hasStarted = logs.some(log => log.status !== '대기');
+            if (hasStarted) {
+              throw new Error(`[${order.item_name}] 품목은 이미 가공 공정이 시작되어 소재 입고를 취소할 수 없습니다.`);
+            }
+          } else {
+            const currentLog = logs.find(log => log.process_name === order.process_name);
+            if (currentLog) {
+              const subsequentLogs = logs.filter(log => log.sequence_no > currentLog.sequence_no);
+              const hasNextStarted = subsequentLogs.some(log => log.status !== '대기');
+              if (hasNextStarted) {
+                throw new Error(`[${order.item_name}] 품목은 외주 이후 다음 공정이 이미 진행 중이어서 입고를 취소할 수 없습니다.`);
+              }
+            }
+          }
+        }
+      }
+      // -----------------------------------------------------------
+
+      if (outsourceIds.length > 0) {
+        const { error } = await supabase.from('outsource_orders').update({ status: '발주완료', received_qty: 0 }).in('id', outsourceIds);
+        if (error) throw error;
+        
+        // 외주 공정 자체의 로그도 '외주가공중'으로 롤백
+        for (const order of targetOrders.filter(o => o.type !== 'MATERIAL')) {
+          if (order.order_item_id) {
+            if (order.process_name) {
+              await supabase
+                .from('process_logs')
+                .update({ status: '외주가공중' })
+                .eq('order_item_id', order.order_item_id)
+                .eq('process_name', order.process_name)
+                .eq('status', '완료');
+            }
+            
+            // 만약 완제품 외주여서 SHIPPING_READY 상태가 되었다면, 다시 OUTSOURCE_READY로 강등
+            await supabase
+              .from('order_items')
+              .update({ production_status: 'OUTSOURCE_READY' })
+              .eq('id', order.order_item_id)
+              .eq('production_status', 'SHIPPING_READY');
+          }
+        }
+      }
+      if (materialIds.length > 0) {
+        const { error } = await supabase.from('material_orders').update({ status: '발주완료', received_qty: 0 }).in('id', materialIds);
+        if (error) throw error;
+      }
+      
+      return { success: true, count: orderIds.length };
+    } catch (err: any) {
+      console.error(err);
+      return { success: false, error: err.message };
+    } finally {
+      setLoading(false);
+      fetchOrders();
+    }
+  };
+
   // 모달을 통한 묶음 발주 확정 (DB 저장)
   const processBatchOrder = async (
-    updates: { id: string; type: ProcurementType; unit_price: number; note: string }[],
+    updates: { id: string; type: ProcurementType; unit_price: number; estimated_price?: number; note: string; spec?: string; quantity?: number; shape?: string }[],
     supplierId: string,
     supplierName: string,
     expectedDate: string,
@@ -271,16 +432,34 @@ export function useProcurementList(activeTab: ProcurementTab) {
         const order = orders.find(o => o.id === update.id);
         if (!order) continue;
 
-        await supabase.from('material_orders').update({
+        const qty = update.quantity ?? order.quantity;
+        const total_price = update.unit_price * qty;
+
+        const updatePayload: any = {
           supplier_id: supplierId,
           supplier_name: supplierName,
           expected_date: expectedDate,
           unit_price: update.unit_price,
-          total_price: update.unit_price * order.quantity,
+          total_price: total_price,
           status: '발주완료',
           order_date: today,
           po_receipt_token: token
-        }).eq('id', update.id);
+        };
+
+        if (update.spec !== undefined) {
+          updatePayload.spec = update.spec;
+        }
+        if (update.quantity !== undefined) {
+          updatePayload.quantity = update.quantity;
+        }
+        if (update.shape !== undefined) {
+          updatePayload.shape = update.shape;
+        }
+        if (update.estimated_price !== undefined) {
+          updatePayload.estimated_price = update.estimated_price;
+        }
+
+        await supabase.from('material_orders').update(updatePayload).eq('id', update.id);
       }
 
       fetchOrders();
@@ -292,11 +471,57 @@ export function useProcurementList(activeTab: ProcurementTab) {
     }
   };
 
+  // 입고 단가 인라인 즉시 업데이트
+  const updateActualPrice = async (
+    id: string,
+    type: ProcurementType,
+    actualPrice: number,
+    quantity: number
+  ) => {
+    try {
+      const table = type === 'MATERIAL' ? 'material_orders' : 'outsource_orders';
+      const now = new Date().toISOString();
+      const actualTotal = actualPrice * (quantity || 1);
+
+      const { error } = await supabase
+        .from(table)
+        .update({
+          actual_unit_price: actualPrice,
+          actual_total_price: actualTotal,
+          updated_at: now
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      // 낙관적 UI 업데이트
+      setOrders(prev => prev.map(order => {
+        if (order.id === id) {
+          return {
+            ...order,
+            actual_unit_price: actualPrice,
+            actual_total_price: actualTotal
+          };
+        }
+        return order;
+      }));
+
+      toast.success('입고 단가가 수정되었습니다.');
+      return true;
+    } catch (err: any) {
+      console.error(err);
+      toast.error('단가 수정 실패: ' + (err.message || '오류가 발생했습니다.'));
+      return false;
+    }
+  };
+
   return { 
     orders, 
     loading, 
     fetchOrders, 
     undoBatchOrders,
-    processBatchOrder
+    undoReceivingOrders,
+    processBatchOrder,
+    updateActualPrice
   };
 }

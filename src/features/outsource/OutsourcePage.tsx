@@ -2,8 +2,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useStickySearchParams } from '@/hooks/useStickySearchParams';
 import { useProcurementList } from './hooks/useProcurementList';
 import type { ProcurementTab, ProcurementOrder } from './hooks/useProcurementList';
-import { PageHeader, PageTabs, Button, BaseInput, Badge, Toggle, Checkbox, Table, Thead, Tbody, Tr, Th, Td } from '@/design-system';
-import { Search, Mail, Package, ExternalLink, Download } from 'lucide-react';
+import { PageHeader, PageTabs, Button, BaseInput, BaseSelect, Badge, Toggle, Checkbox, Table, Thead, Tbody, Tr, Th, Td, StatusBadge } from '@/design-system';
+import { Search, Mail, Package, ExternalLink, Download, ChevronDown } from 'lucide-react';
 import {
   createColumnHelper,
   flexRender,
@@ -23,6 +23,7 @@ import { toast } from '@/shared/stores/useToastStore';
 import { supabase } from '@/shared/services/supabase';
 
 import { OrderDispatchModal } from './components/OrderDispatchModal';
+import { EditablePriceCell } from './components/EditablePriceCell';
 
 const calculateDDay = (targetDate?: string) => {
   if (!targetDate) return { text: '-', variant: 'default' as const };
@@ -37,21 +38,54 @@ const calculateDDay = (targetDate?: string) => {
   return { text: `D-${days}`, variant: 'default' as const };
 };
 
+interface FilterSelectProps {
+  label: string;
+  value: string;
+  onChange: (val: string) => void;
+  options: { value: string; label: string }[];
+  className?: string;
+}
+
+const FilterSelect: React.FC<FilterSelectProps> = ({ label, value, onChange, options, className = '' }) => {
+  return (
+    <div className={`flex items-center gap-1.5 bg-bg-surface border border-border-default hover:border-border-strong rounded-lg px-2.5 py-1.5 transition-colors shadow-sm ${className}`}>
+      <span className="text-text-tertiary text-xs font-medium whitespace-nowrap">{label}</span>
+      <div className="relative flex items-center">
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="bg-transparent text-text-primary text-xs font-semibold focus:outline-none cursor-pointer pr-4 appearance-none"
+        >
+          {options.map((opt) => (
+            <option key={opt.value} value={opt.value} className="bg-bg-elevated text-text-primary">
+              {opt.label}
+            </option>
+          ))}
+        </select>
+        <ChevronDown size={12} className="text-text-tertiary absolute right-0 pointer-events-none" />
+      </div>
+    </div>
+  );
+};
+
 const columnHelper = createColumnHelper<ProcurementOrder>();
 
 export const OutsourcePage = () => {
   const [searchParams, setSearchParams] = useStickySearchParams('outsource_list_filters', { keyword: '', status: 'ALL', tab: 'STATUS' });
   const [keyword, setKeyword] = useState(searchParams.get('keyword') || '');
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'ALL');
+  const [originFilter, setOriginFilter] = useState<'ALL' | 'ADMIN' | 'FIELD'>('ALL');
+  const [procurementTypeFilter, setProcurementTypeFilter] = useState<'ALL' | 'OUTSOURCE' | 'PURCHASE' | 'MATERIAL'>('ALL');
   const [mainTab, setMainTab] = useState<ProcurementTab>((searchParams.get('tab') as ProcurementTab) || 'STATUS');
   
-  const { orders, loading, fetchOrders, undoBatchOrders, processBatchOrder } = useProcurementList(mainTab);
+  const { orders, loading, fetchOrders, undoBatchOrders, undoReceivingOrders, processBatchOrder, updateActualPrice } = useProcurementList(mainTab);
   
   const [sorting, setSorting] = useState<SortingState>([]);
   const [grouping, setGrouping] = useState<GroupingState>([]);
   const [expanded, setExpanded] = useState<ExpandedState>({});
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
+  const [undoReceivingConfirmOpen, setUndoReceivingConfirmOpen] = useState(false);
 
   // Suppliers for dropdown
   const [suppliers, setSuppliers] = useState<{id: string, name: string, manager_email?: string, manager_name?: string}[]>([]);
@@ -72,8 +106,18 @@ export const OutsourcePage = () => {
                                (i.supplier_name || '').toLowerCase().includes(lower);
         if (!matchesKeyword) return false;
       }
+
+      // 2. 조달 유형 필터 (외주발주 / 구매발주 / 소재발주) - 발주 현황 탭일 때
+      if (mainTab === 'STATUS' && procurementTypeFilter !== 'ALL') {
+        if (i.type !== procurementTypeFilter) return false;
+      }
+
+      // 3. Origin filter (관리직 vs 현장 발주)
+      if (originFilter !== 'ALL') {
+        if (i.origin !== originFilter) return false;
+      }
       
-      // 2. Status filter
+      // 4. Status filter
       if (statusFilter !== 'ALL') {
         if (statusFilter === '지연') {
             const isDelayed = i.expected_date && new Date(i.expected_date).getTime() < new Date().setHours(0,0,0,0) && i.status !== '입고완료';
@@ -89,7 +133,7 @@ export const OutsourcePage = () => {
       
       return true;
     });
-  }, [orders, keyword, statusFilter]);
+  }, [orders, keyword, statusFilter, originFilter, procurementTypeFilter, mainTab]);
 
   const toggleItem = (id: string) => {
     setSelectedItemIds(prev => {
@@ -182,7 +226,7 @@ export const OutsourcePage = () => {
     }),
     columnHelper.accessor('po_no', {
       id: 'po_no',
-      header: 'PO 번호',
+      header: '시스템 품번 / 발주 번호',
       cell: ({ row, getValue }) => {
         const hasItems = row.original.type === 'MATERIAL' && row.original.items && row.original.items.length > 0;
         return (
@@ -222,17 +266,28 @@ export const OutsourcePage = () => {
       header: '공정/분류',
       cell: info => {
         const item = info.row.original;
+        const isField = item.origin === 'FIELD';
+
         if (item.type === 'MATERIAL') {
           return (
             <div className="flex flex-col gap-1 items-start">
-              {item.shape && <Badge variant="secondary" className="text-[11px] px-1.5 py-0">{item.shape}</Badge>}
-              <span className="text-text-secondary">{item.item_spec !== '-' ? item.item_spec : ''}</span>
+              <div className="flex items-center gap-1.5">
+                <StatusBadge type="outsource_type" status="MATERIAL" />
+                {item.shape && <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{item.shape}</Badge>}
+              </div>
+              <span className="text-text-secondary text-xs">{item.item_spec !== '-' ? item.item_spec : ''}</span>
             </div>
           );
         }
-        return <span className="text-text-secondary">{info.getValue()}</span>;
+
+        return (
+          <div className="flex flex-col gap-1 items-start">
+            <StatusBadge type="outsource_type" status={isField ? 'FIELD' : 'ADMIN'} />
+            <span className="text-text-primary text-xs font-medium">{info.getValue()}</span>
+          </div>
+        );
       },
-      size: 130,
+      size: 150,
     }),
     columnHelper.accessor('quantity', {
       header: '수량(잔여)',
@@ -247,23 +302,39 @@ export const OutsourcePage = () => {
           </div>
         );
       },
-      size: 80,
+      size: 90,
     }),
     columnHelper.accessor('unit_price', {
-      header: '단가',
-      cell: info => {
-        const item = info.row.original;
-        if (item.type === 'MATERIAL' && item.estimated_price && !item.unit_price) {
-          return (
-            <div className="flex flex-col">
-              <span className="text-text-secondary">{(item.estimated_price).toLocaleString()}</span>
-              <span className="text-[10px] text-brand-400">예상가</span>
-            </div>
-          );
-        }
-        return <span className="text-text-secondary">{(info.getValue() || 0).toLocaleString()}</span>;
+      header: '단가(발주/입고)',
+      cell: ({ row }) => {
+        const item = row.original;
+        const orderPrice = item.unit_price || (item.raw_data?.estimated_price ? Number(item.raw_data.estimated_price) : 0);
+        return (
+          <EditablePriceCell
+            orderPrice={orderPrice}
+            actualPrice={item.actual_unit_price}
+            status={item.status}
+            onSave={async (newPrice) => {
+              return await updateActualPrice(
+                item.id,
+                item.type,
+                newPrice,
+                item.quantity
+              );
+            }}
+          />
+        );
       },
-      size: 100,
+      size: 130,
+    }),
+    columnHelper.accessor('total_amount', {
+      header: '금액',
+      cell: info => (
+        <span className="font-mono font-medium text-text-primary">
+          {info.getValue() ? `₩${info.getValue().toLocaleString()}` : '-'}
+        </span>
+      ),
+      size: 110,
     }),
     columnHelper.accessor('expected_date', {
       header: '납기일',
@@ -283,18 +354,19 @@ export const OutsourcePage = () => {
       cell: info => {
         const status = info.getValue();
         const readAt = info.row.original.read_at;
-        
-        let badgeVariant: any = 'default';
-        if (status === '발주완료') badgeVariant = 'warning';
-        else if (status === '수신확인') badgeVariant = 'success';
-        else if (status === '입고완료') badgeVariant = 'primary';
+        const receivedDate = info.row.original.received_date || (info.row.original.updated_at ? info.row.original.updated_at.split('T')[0] : null);
         
         return (
           <div className="flex flex-col gap-1 items-start">
-            <Badge variant={badgeVariant}>{status}</Badge>
+            <StatusBadge type="outsource_status" status={status} />
             {status === '수신확인' && readAt && (
               <span className="text-[10px] text-brand-500 font-medium">
                 {new Date(readAt).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} 읽음
+              </span>
+            )}
+            {status === '입고완료' && receivedDate && (
+              <span className="text-[11px] text-text-tertiary font-mono tracking-tight">
+                {receivedDate}
               </span>
             )}
           </div>
@@ -381,12 +453,9 @@ export const OutsourcePage = () => {
     <div className="flex flex-col h-full bg-bg-base animate-in fade-in">
       <div className="p-6 pb-0">
         <PageHeader
-          title={
-            <div className="flex items-center gap-2">
-              <Package className="text-brand-500" />
-              외주/구매 관리
-            </div>
-          }
+          icon={Package}
+          title="외주/구매 관리"
+          description="사외 임가공 외주 발주 및 원소재 구매 내역을 통합 관리합니다."
           actions={
             <div className="flex items-center gap-4">
               <div className="w-64 relative">
@@ -412,9 +481,22 @@ export const OutsourcePage = () => {
                   const i = orders.find(item => item.id === id);
                   return i && i.status !== '발주대기' && i.status !== '입고완료';
                 });
+
+                const receivedSelected = Array.from(selectedItemIds).filter(id => {
+                  const i = orders.find(item => item.id === id);
+                  return i && i.status === '입고완료';
+                });
                 
                 return (
                   <div className="flex items-center gap-2">
+                    {receivedSelected.length > 0 && mainTab === 'STATUS' && (
+                      <Button 
+                        variant="warning"
+                        onClick={() => setUndoReceivingConfirmOpen(true)}
+                      >
+                        입고 취소 ({receivedSelected.length})
+                      </Button>
+                    )}
                     {nonPendingSelected.length > 0 && mainTab === 'STATUS' && (
                       <Button 
                         variant="secondary"
@@ -477,69 +559,90 @@ export const OutsourcePage = () => {
             ))}
           </div>
 
-          <div className="flex items-center gap-4 pb-2 text-sm">
-            {mainTab === 'STATUS' ? (
-              <>
-                <div className="flex items-center bg-bg-elevated rounded-md p-1 border border-border-default">
-                  {[
-                    { id: 'ALL', label: '전체' },
-                    { id: '진행', label: '진행' },
-                    { id: '지연', label: '지연' },
-                    { id: '완료', label: '완료' },
-                  ].map(f => (
-                    <button
-                      key={f.id}
-                      onClick={() => {
-                        setStatusFilter(f.id);
-                        setSelectedItemIds(new Set());
-                        setSearchParams({ keyword, status: f.id, tab: mainTab });
-                      }}
-                      className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                        statusFilter === f.id ? 'bg-brand-500/20 text-brand-400' : 'text-text-secondary hover:text-text-primary'
-                      }`}
-                    >
-                      {f.label}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="h-4 w-[1px] bg-border-default"></div>
-
-                <div className="text-text-secondary flex items-center gap-2">
-                  <Package size={16} />
-                  <span>총 <span className="text-brand-400 font-bold">{filteredItems.length}</span>건</span>
-                </div>
-                
-                <div className="h-4 w-[1px] bg-border-default"></div>
-
-                <div className="flex items-center gap-2">
-                  <span className="text-text-secondary font-medium text-xs whitespace-nowrap">업체명 그룹화</span>
-                  <Toggle 
-                    checked={grouping.length > 0} 
-                    onChange={(checked) => {
-                      if (checked) {
-                        setGrouping(['supplier_name']);
-                        setExpanded(true); // true means expand all
-                      } else {
-                        setGrouping([]);
-                        setExpanded({});
-                      }
-                    }} 
-                  />
-                </div>
-              </>
-            ) : (
-              <div className="flex items-center gap-4">
-                <div className="text-xs text-text-tertiary">
-                  * 목록에서 발주할 항목을 선택한 후 우측 상단의 [선택 발주] 버튼을 클릭하세요.
-                </div>
-                <div className="h-4 w-[1px] bg-border-default"></div>
-                <div className="text-text-secondary flex items-center gap-2">
-                  <Package size={16} />
-                  <span>발주 대기 총 <span className="text-brand-400 font-bold">{filteredItems.length}</span>건</span>
-                </div>
-              </div>
+          <div className="flex items-center gap-2.5 pb-2 text-sm">
+            {/* 1. 조달 유형 필터: 발주현황(STATUS) 탭에서 외주/구매/소재 구분 필터링 */}
+            {mainTab === 'STATUS' && (
+              <FilterSelect
+                label="조달"
+                value={procurementTypeFilter}
+                onChange={(val) => {
+                  setProcurementTypeFilter(val as any);
+                  setSelectedItemIds(new Set());
+                }}
+                options={[
+                  { value: 'ALL', label: '전체 조달' },
+                  { value: 'OUTSOURCE', label: '외주발주' },
+                  { value: 'PURCHASE', label: '구매발주' },
+                  { value: 'MATERIAL', label: '소재발주' },
+                ]}
+              />
             )}
+
+            {/* 2. 발주 구분 필터: 발주현황(STATUS) 및 외주발주(OUTSOURCE) 탭에서 표시 */}
+            {(mainTab === 'STATUS' || mainTab === 'OUTSOURCE') && (
+              <FilterSelect
+                label="구분"
+                value={originFilter}
+                onChange={(val) => {
+                  setOriginFilter(val as any);
+                  setSelectedItemIds(new Set());
+                }}
+                options={[
+                  { value: 'ALL', label: '전체 구분' },
+                  { value: 'ADMIN', label: '🏢 관리 발주' },
+                  { value: 'FIELD', label: '🛠️ 현장 반출' },
+                ]}
+              />
+            )}
+
+            {/* 3. 진행 상태 필터: 발주현황(STATUS) 탭에서만 표시 */}
+            {mainTab === 'STATUS' && (
+              <FilterSelect
+                label="상태"
+                value={statusFilter}
+                onChange={(val) => {
+                  setStatusFilter(val);
+                  setSelectedItemIds(new Set());
+                  setSearchParams({ keyword, status: val, tab: mainTab });
+                }}
+                options={[
+                  { value: 'ALL', label: '전체 상태' },
+                  { value: '진행', label: '진행' },
+                  { value: '지연', label: '지연' },
+                  { value: '완료', label: '완료' },
+                ]}
+              />
+            )}
+
+            <div className="h-4 w-[1px] bg-border-default"></div>
+
+            {/* 4. 총 건수 표시 (공통) */}
+            <div className="text-text-secondary flex items-center gap-1.5 text-xs whitespace-nowrap px-1">
+              <Package size={14} className="text-text-tertiary" />
+              <span>
+                {mainTab === 'STATUS' ? '총 ' : '대기 '}
+                <span className="text-brand-400 font-bold">{filteredItems.length}</span>건
+              </span>
+            </div>
+            
+            <div className="h-4 w-[1px] bg-border-default"></div>
+
+            {/* 5. 업체명 그룹화 토글 (공통) */}
+            <div className="flex items-center gap-2">
+              <span className="text-text-secondary font-medium text-xs whitespace-nowrap">업체별 그룹</span>
+              <Toggle 
+                checked={grouping.length > 0} 
+                onChange={(checked) => {
+                  if (checked) {
+                    setGrouping(['supplier_name']);
+                    setExpanded(true); // true means expand all
+                  } else {
+                    setGrouping([]);
+                    setExpanded({});
+                  }
+                }} 
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -663,7 +766,31 @@ export const OutsourcePage = () => {
         />
       )}
 
-
+      <DeleteConfirmModal
+        isOpen={undoReceivingConfirmOpen}
+        onClose={() => setUndoReceivingConfirmOpen(false)}
+        title="입고 취소 확인"
+        description={`선택한 ${Array.from(selectedItemIds).filter(id => {
+          const i = orders.find(item => item.id === id);
+          return i && i.status === '입고완료';
+        }).length}개 항목의 입고를 정말 취소(발주완료 상태로 변경)하시겠습니까?`}
+        confirmText="입고 취소 진행"
+        isDanger={false}
+        icon={<Package className="w-5 h-5" />}
+        onConfirm={async () => {
+          const receivedSelected = Array.from(selectedItemIds).filter(id => {
+            const i = orders.find(item => item.id === id);
+            return i && i.status === '입고완료';
+          });
+          const res = await undoReceivingOrders(receivedSelected);
+          if (res.success) {
+            toast.success(`${res.count}개 항목이 입고 취소되었습니다.`);
+            setSelectedItemIds(new Set());
+          } else {
+            toast.error(res.error || '입고 취소에 실패했습니다.');
+          }
+        }}
+      />
 
       <DeleteConfirmModal
         isOpen={cancelConfirmOpen}

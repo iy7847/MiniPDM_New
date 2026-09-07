@@ -18,6 +18,7 @@ export type Estimate = {
   updated_at: string;
   clients?: { name: string };
   item_count?: number;
+  custom_columns?: string[]; // [NEW] - Dynamic columns specific to this estimate
 };
 
 export type EstimateItem = {
@@ -49,9 +50,11 @@ export type EstimateItem = {
   heat_treatment_cost?: number;
   material_cost?: number;
   processing_cost?: number;
-  outsource_cost?: number; // [NEW]
+  outsource_cost?: number; 
 
-  calculated_price?: number; // [NEW] - Calculated unit price (theoretical cost)
+  custom_costs?: Record<string, number>; // [NEW] - Dynamic costs
+
+  calculated_price?: number; 
 
   qty: number;
   unit_price: number;
@@ -94,6 +97,7 @@ export const INITIAL_ITEM_FORM: EstimateItem = {
   material_cost: 0,
   processing_cost: 0,
   outsource_cost: 0,
+  custom_costs: {},
   qty: 1,
   unit_price: 0,
   supply_price: 0,

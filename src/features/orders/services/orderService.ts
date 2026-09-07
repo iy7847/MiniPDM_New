@@ -37,10 +37,13 @@ export async function getOrderWithItems(orderId: string) {
       ),
       order_items (
         *,
+        materials:material_id (code),
         files (*),
         estimate_items:estimate_item_id (
           *,
-          files (*)
+          files (*),
+          post_processings:post_processing_id (name),
+          heat_treatments:heat_treatment_id (name)
         )
       )
     `)

@@ -3,10 +3,12 @@ import { useGroupManagement } from '../hooks/useGroupManagement';
 import { Card, CardHeader, CardTitle, CardContent, Button, Toggle, BaseInput } from '@/design-system';
 import type { UserPermissions } from '@/shared/types/auth';
 import { Users, Plus, Shield, Trash2 } from 'lucide-react';
+import { useConfirm } from '@/app/providers/ConfirmProvider';
 
 export function GroupManagementTab({ companyId }: { companyId: string }) {
   const { groups, isLoading, error, fetchGroups, createGroup, updateGroup, deleteGroup } = useGroupManagement();
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const { confirm } = useConfirm();
   
   const [isCreating, setIsCreating] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
@@ -33,7 +35,7 @@ export function GroupManagementTab({ companyId }: { companyId: string }) {
   };
 
   const handleDeleteGroup = async (id: string) => {
-    if (confirm('정말로 이 그룹을 삭제하시겠습니까?')) {
+    if (await confirm({ title: '그룹 삭제', description: '정말로 이 그룹을 삭제하시겠습니까?', isDanger: true })) {
       await deleteGroup(id);
       if (selectedGroupId === id) {
         setSelectedGroupId(null);
@@ -83,18 +85,19 @@ export function GroupManagementTab({ companyId }: { companyId: string }) {
       ],
     },
     {
-      title: '통계 분석',
+      title: '시스템 관리',
       items: [
         { key: 'can_view_analytics', label: '통계 대시보드 조회' },
+        { key: 'can_manage_settings', label: '환경 설정 관리 (회사정보/단가/양식)' },
       ],
     },
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      {/* Left: Group List */}
-      <Card className="md:col-span-1 h-[calc(100vh-12rem)] flex flex-col">
-        <CardHeader className="pb-4 border-b border-border-default flex flex-row items-center justify-between">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 items-start">
+      {/* Left: Group List (Sticky) */}
+      <Card className="lg:col-span-1 lg:sticky lg:top-4 flex flex-col max-h-[calc(100vh-8rem)] shadow-sm">
+        <CardHeader className="pb-4 border-b border-border-default flex flex-row items-center justify-between shrink-0">
           <CardTitle className="flex items-center gap-2">
             <Users className="w-5 h-5 text-brand-500" />
             그룹 목록
@@ -104,7 +107,7 @@ export function GroupManagementTab({ companyId }: { companyId: string }) {
             추가
           </Button>
         </CardHeader>
-        <CardContent className="p-0 overflow-y-auto flex-1">
+        <CardContent className="p-0 overflow-y-auto flex-1 min-h-[300px]">
           {isCreating && (
             <div className="p-4 border-b border-border-default bg-bg-surface space-y-3">
               <BaseInput 
@@ -136,16 +139,14 @@ export function GroupManagementTab({ companyId }: { companyId: string }) {
               <li key={group.id}>
                 <button
                   onClick={() => setSelectedGroupId(group.id)}
-                  className={`w-full text-left p-4 flex flex-col gap-2 transition-colors duration-200 hover:bg-bg-elevated ${
+                  className={`w-full text-left p-4 flex flex-col gap-1 transition-colors duration-200 hover:bg-bg-elevated ${
                     selectedGroupId === group.id ? 'bg-bg-elevated border-l-2 border-brand-500' : 'border-l-2 border-transparent'
                   }`}
                 >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <div className="font-medium text-text-primary">{group.name}</div>
-                      {group.description && <div className="text-xs text-text-secondary mt-1">{group.description}</div>}
-                    </div>
-                  </div>
+                  <div className="font-medium text-text-primary text-sm">{group.name}</div>
+                  {group.description && (
+                    <div className="text-xs text-text-secondary line-clamp-1">{group.description}</div>
+                  )}
                 </button>
               </li>
             ))}
@@ -153,8 +154,8 @@ export function GroupManagementTab({ companyId }: { companyId: string }) {
         </CardContent>
       </Card>
 
-      {/* Right: Group Permissions */}
-      <div className="md:col-span-2 h-[calc(100vh-12rem)] overflow-y-auto">
+      {/* Right: Group Permissions (Unified Single Scroll) */}
+      <div className="lg:col-span-2 space-y-6">
         {selectedGroup ? (
           <div className="space-y-6">
             <Card>

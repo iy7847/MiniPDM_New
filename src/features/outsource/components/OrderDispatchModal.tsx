@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { supabase } from '@/shared/services/supabase';
 import { toast } from '@/shared/stores/useToastStore';
-import { Button, BaseInput, BaseSelect } from '@/design-system';
+import { Button, BaseInput, BaseSelect, NumberInput } from '@/design-system';
 import type { ProcurementOrder } from '../hooks/useProcurementList';
 import { EmailComposeModal } from './EmailComposeModal';
 import { MaterialCalculatorModal } from './MaterialCalculatorModal';
@@ -103,11 +103,23 @@ export const OrderDispatchModal: React.FC<OrderDispatchModalProps> = ({
   };
 
   const handleCalculatorSave = (orderId: string, newFormData: any) => {
-    const price = newFormData.estimated_price || 0;
-    // 사용자가 소재계산 결과 문자열을 비고에 덮어쓰지 말고 삭제(유지)해달라고 요청
+    // 예상 단가(estimated_price)와 실제 단가(unit_price) 분리
+    const estimatedPrice = newFormData.estimated_price || 0;
+    
+    // 계산기 안에서 직접 입력한 단가가 있으면 우선 사용하고, 없으면 기존 단가 유지
+    const actualPrice = newFormData.unit_price > 0 ? newFormData.unit_price : (itemUpdates[orderId]?.unit_price || 0);
+
     setItemUpdates(prev => ({ 
       ...prev, 
-      [orderId]: { ...prev[orderId], unit_price: price, note: prev[orderId]?.note || '' } 
+      [orderId]: { 
+        ...prev[orderId], 
+        unit_price: actualPrice, 
+        estimated_price: estimatedPrice,
+        note: prev[orderId]?.note || '',
+        spec: newFormData.spec,
+        quantity: newFormData.quantity,
+        shape: newFormData.shape
+      } 
     }));
     setActiveCalculatorOrderId(null);
   };
@@ -119,7 +131,11 @@ export const OrderDispatchModal: React.FC<OrderDispatchModalProps> = ({
       id: o.id,
       type: o.type,
       unit_price: itemUpdates[o.id]?.unit_price || 0,
-      note: itemUpdates[o.id]?.note || ''
+      estimated_price: itemUpdates[o.id]?.estimated_price || 0,
+      note: itemUpdates[o.id]?.note || '',
+      spec: itemUpdates[o.id]?.spec,
+      quantity: itemUpdates[o.id]?.quantity,
+      shape: itemUpdates[o.id]?.shape
     }));
 
     return (
@@ -139,7 +155,7 @@ export const OrderDispatchModal: React.FC<OrderDispatchModalProps> = ({
     );
   }
 
-  const parseMaterialSpec = (spec: string) => {
+  const parseMaterialSpec = (spec: string, originalShape?: string) => {
     const result = {
       shapeCategory: '판재/각재류',
       shape: '일반 판재',
@@ -148,7 +164,9 @@ export const OrderDispatchModal: React.FC<OrderDispatchModalProps> = ({
     if (!spec) return result;
 
     const s = spec.toUpperCase();
-    if (s.includes('Ø') || s.includes('∅') || s.includes('⌀') || s.match(/[0-9]D/) || s.startsWith('D')) {
+    const isRound = originalShape === 'round' || originalShape === '원형' || s.includes('Ø') || s.includes('∅') || s.includes('⌀') || s.match(/[0-9]D/) || s.startsWith('D') || s.includes('HEX');
+    
+    if (isRound) {
       result.shapeCategory = '봉재류';
       result.shape = '환봉';
       
@@ -168,6 +186,7 @@ export const OrderDispatchModal: React.FC<OrderDispatchModalProps> = ({
       const parts = s.replace(/[\d.]+\s*T/g, '').split('X').map(p => parseFloat(p.replace(/[^0-9.]/g, '').trim())).filter(n => !isNaN(n));
       if (parts.length >= 1) result.dims.w = parts[0];
       if (parts.length >= 2) result.dims.d = parts[1];
+      if (parts.length >= 3 && !tMatch) result.dims.t = parts[2];
     }
     return result;
   };
@@ -176,18 +195,22 @@ export const OrderDispatchModal: React.FC<OrderDispatchModalProps> = ({
   const activeCalculatorOrder = selectedOrders.find(o => o.id === activeCalculatorOrderId);
   let calculatorGroup: any = null;
   if (activeCalculatorOrder) {
-    const parsed = parseMaterialSpec(activeCalculatorOrder.item_spec);
+    const currentSpec = itemUpdates[activeCalculatorOrder.id]?.spec ?? activeCalculatorOrder.item_spec;
+    const currentQty = itemUpdates[activeCalculatorOrder.id]?.quantity ?? activeCalculatorOrder.quantity;
+    const originalShape = activeCalculatorOrder.original_shape;
+    
+    const parsed = parseMaterialSpec(currentSpec, originalShape);
     calculatorGroup = {
       id: activeCalculatorOrder.id,
       items: [{ files: activeCalculatorOrder.files }], // Fix PDF viewer mapping
       formData: {
         material_name: activeCalculatorOrder.item_name,
-        spec: activeCalculatorOrder.item_spec,
-        quantity: activeCalculatorOrder.quantity,
+        spec: currentSpec,
+        quantity: currentQty,
         weight: 0,
-        unit_price: 0,
-        estimated_price: itemUpdates[activeCalculatorOrder.id]?.unit_price || 0,
-        shape: parsed.shape,
+        unit_price: itemUpdates[activeCalculatorOrder.id]?.unit_price || 0,
+        estimated_price: itemUpdates[activeCalculatorOrder.id]?.estimated_price || 0,
+        shape: itemUpdates[activeCalculatorOrder.id]?.shape ?? parsed.shape,
         shapeCategory: parsed.shapeCategory,
         dims: parsed.dims
       }
@@ -243,8 +266,9 @@ export const OrderDispatchModal: React.FC<OrderDispatchModalProps> = ({
               </thead>
               <tbody>
                 {selectedOrders.map(order => {
-                  const qty = order.quantity;
+                  const qty = itemUpdates[order.id]?.quantity ?? order.quantity;
                   const price = itemUpdates[order.id]?.unit_price ?? 0;
+                  const spec = itemUpdates[order.id]?.spec ?? order.item_spec;
                   const total = qty * price;
                   
                   return (
@@ -258,7 +282,7 @@ export const OrderDispatchModal: React.FC<OrderDispatchModalProps> = ({
                       </td>
                       <td className="px-4 py-2 text-text-secondary align-middle">
                         <div className="flex flex-col gap-1 items-start">
-                          <span>{order.item_spec}</span>
+                          <span>{spec}</span>
                           {order.type === 'MATERIAL' && (
                              <Button variant="outline" size="sm" className="h-6 text-xs px-2" onClick={() => setActiveCalculatorOrderId(order.id)}>
                                <Calculator size={12} className="mr-1" /> 계산기
@@ -270,12 +294,11 @@ export const OrderDispatchModal: React.FC<OrderDispatchModalProps> = ({
                         {qty}
                       </td>
                       <td className="px-4 py-2 align-middle">
-                        <BaseInput 
-                          type="number"
+                        <NumberInput 
                           className="w-full m-0"
                           inputClassName="h-8 !py-1 text-right text-sm"
                           value={price}
-                          onChange={(e) => handlePriceChange(order.id, e.target.value ? Number(e.target.value) : 0)}
+                          onChange={(val) => handlePriceChange(order.id, val || 0)}
                         />
                       </td>
                       <td className="px-4 py-2 text-right text-brand-400 font-medium align-middle">

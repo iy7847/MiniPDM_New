@@ -46,7 +46,7 @@ export function EditablePdfViewer({ file, onOcrResult, onSaveMaskedPdf, isViewer
     setIsMaskMode,
     handleDeleteMask,
     runOCR
-  } = usePdfOcr(file, pageNumber, RENDER_WIDTH, setIsProcessing, undefined, ocrMode, handleOcrComplete);
+  } = usePdfOcr(file, pageNumber, RENDER_WIDTH, setIsProcessing, undefined, ocrMode, handleOcrComplete, !onOcrResult);
 
   // isViewerOnly가 true이면 강제로 마스킹 모드를 기본으로 켭니다.
   React.useEffect(() => {
@@ -130,6 +130,7 @@ export function EditablePdfViewer({ file, onOcrResult, onSaveMaskedPdf, isViewer
         scale={scale}
         setScale={setScale}
         isViewerOnly={isViewerOnly}
+        hideOcrTools={!onOcrResult}
         onClearMasks={() => setMasks(prev => prev.filter(m => m.page !== pageNumber))}
         rightActions={
           !isViewerOnly ? (

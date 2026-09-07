@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Copy, RefreshCw, UploadCloud, CheckCircle2 } from 'lucide-react';
 import { Button } from '../../../../design-system/Button';
+import { toast } from '@/shared/stores/useToastStore';
 
 interface ClipboardMatchModalProps {
   isOpen: boolean;
@@ -68,7 +69,7 @@ export const ClipboardMatchModal: React.FC<ClipboardMatchModalProps> = ({
 
   const handleApply = () => {
     if (partNoCol === -1) {
-      alert('도번(Part No) 열을 반드시 선택해주세요.');
+      toast.error('도번(Part No) 열을 반드시 선택해주세요.');
       return;
     }
 

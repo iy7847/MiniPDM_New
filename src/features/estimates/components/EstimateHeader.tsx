@@ -4,6 +4,7 @@ import { Button } from '../../../design-system/Button';
 import { SaveButton } from '../../../design-system/SaveButton';
 import { DetailHeader } from '../../../design-system/DetailHeader';
 import { Badge } from '../../../design-system/Badge';
+import { StatusBadge } from '../../../design-system/StatusBadge';
 import { ExcelExportButton } from '../../../shared/components/ExcelExport';
 import { getCurrencySymbol } from '../../../shared/utils/currency';
 import type { Estimate, EstimateItem } from '../types';
@@ -48,9 +49,7 @@ export const EstimateHeader: React.FC<EstimateHeaderProps> = ({
       statusBadge={
         !isNew && (
           <div className="flex items-center gap-2">
-            {estimate?.status === 'DRAFT' && <Badge variant="warning">작성중</Badge>}
-            {estimate?.status === 'SENT' && <Badge variant="default" className="flex items-center gap-1"><span className="text-[10px]">🔒</span> 제출 완료</Badge>}
-            {estimate?.status === 'ORDERED' && <Badge variant="success" className="flex items-center gap-1"><span className="text-[10px]">🔒</span> 수주 완료</Badge>}
+            <StatusBadge type="estimate" status={estimate?.status} />
             
             {estimate?.status === 'SENT' && (
               <button
@@ -106,9 +105,11 @@ export const EstimateHeader: React.FC<EstimateHeaderProps> = ({
           <ExcelExportButton 
             data={items} 
             companyId={companyId || ''} 
-            fileName={estimate?.project_name || '견적서'} 
+            fileName={`${estimate?.estimate_no}_${estimate?.project_name}`}
+            disabled={saving || items.length === 0}
             showForeign={isForeignMode}
             exchangeRate={estimate?.base_exchange_rate || 1}
+            estimate={estimate}
             variant="ghost"
             className="text-text-secondary hover:text-text-primary gap-1 px-2 py-0.5 h-7 text-[11px] justify-start w-full"
             iconSize={14}

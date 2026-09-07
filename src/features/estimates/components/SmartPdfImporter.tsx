@@ -13,6 +13,8 @@ import { SmartPdfResults } from './SmartPdfResults';
 import { usePdfViewer } from '../hooks/usePdfViewer';
 import { usePdfOcr } from '../hooks/usePdfOcr';
 import { usePdfExport } from '../hooks/usePdfExport';
+import { toast } from '@/shared/stores/useToastStore';
+import { useConfirm } from '@/app/providers/ConfirmProvider';
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -37,6 +39,7 @@ export function SmartPdfImporter({ isOpen, onClose, onImportComplete, companyInf
   const [isProcessing, setIsProcessing] = useState(false);
   const [ocrMode, setOcrMode] = useState<'part_no' | 'part_name' | 'material'>('part_no');
   const [isDragOver, setIsDragOver] = useState(false);
+  const { confirm } = useConfirm();
 
   const RENDER_WIDTH = 2400;
   const FALLBACK_INITIAL_SCALE = 0.5;
@@ -73,7 +76,7 @@ export function SmartPdfImporter({ isOpen, onClose, onImportComplete, companyInf
 
   const processFile = (inputFile: File) => {
     if (inputFile.type !== 'application/pdf') {
-      alert('PDF 파일만 지원합니다.');
+      toast.error('PDF 파일만 지원합니다.');
       return;
     }
     setFile(inputFile);
@@ -140,8 +143,8 @@ export function SmartPdfImporter({ isOpen, onClose, onImportComplete, companyInf
     setOcrResults(newResults);
   };
 
-  const handleReset = () => {
-    if (confirm('모든 작업을 초기화하고 파일을 닫으시겠습니까?')) {
+  const handleReset = async () => {
+    if (await confirm({ title: '작업 초기화', description: '모든 작업을 초기화하고 파일을 닫으시겠습니까?', isDanger: true })) {
       setFile(null);
       setOcrResults([]);
     }

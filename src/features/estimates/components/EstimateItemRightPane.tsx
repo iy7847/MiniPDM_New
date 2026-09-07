@@ -5,11 +5,13 @@ import { DocumentViewer } from './DocumentViewer';
 interface EstimateItemRightPaneProps {
   itemForm: EstimateItem;
   setItemForm: React.Dispatch<React.SetStateAction<EstimateItem>>;
+  isReadOnly?: boolean;
 }
 
-export const EstimateItemRightPane: React.FC<EstimateItemRightPaneProps> = ({ itemForm, setItemForm }) => {
+export const EstimateItemRightPane: React.FC<EstimateItemRightPaneProps> = ({ itemForm, setItemForm, isReadOnly = false }) => {
   return (
     <DocumentViewer
+      isReadOnly={isReadOnly}
       files={itemForm.files || []}
       tempFiles={itemForm.tempFiles || []}
       onRemoveTempFile={(index) =>

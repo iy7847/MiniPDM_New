@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronDown, ChevronRight, Type, LayoutList, FileText, Image, AlignLeft, TextQuote, Minus, Hash } from 'lucide-react';
+import { ChevronDown, ChevronRight, Type, LayoutList, FileText, Image, AlignLeft, TextQuote, Minus, Hash, CheckSquare, QrCode } from 'lucide-react';
 import type { BlockType } from '../../types/templateBuilder';
 
 interface BuilderToolbarProps {
@@ -60,10 +60,13 @@ export const BuilderToolbar: React.FC<BuilderToolbarProps> = ({ openGroups, togg
           </button>
           {openGroups.etc && (
             <div className="p-3 flex flex-col gap-2">
-              {renderToolbarButton('label', TextQuote, '텍스트 라벨')}
-              {renderToolbarButton('line', Minus, '구분선')}
-              {renderToolbarButton('condition', TextQuote, '발행 조건')}
+              {renderToolbarButton('condition', FileText, '결제/인도 조건')}
+              {renderToolbarButton('free_text', TextQuote, '자유 텍스트')}
+              {renderToolbarButton('label', Type, '작은 텍스트 라벨')}
+              {renderToolbarButton('line', Minus, '구분선 (Line)')}
               {renderToolbarButton('page_number', Hash, '페이지 번호')}
+              {renderToolbarButton('approval_line', CheckSquare, '결재란')}
+              {renderToolbarButton('qrcode', QrCode, 'QR / 바코드')}
             </div>
           )}
         </div>

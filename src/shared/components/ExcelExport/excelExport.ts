@@ -18,21 +18,45 @@ export const EXCEL_AVAILABLE_COLUMNS = [
 export const exportDataToExcel = (
   items: any[],
   columnIds: string[],
-  fileName: string
+  fileName: string,
+  estimate?: any
 ) => {
-  // 1. 선택된 컬럼 정의 찾기
-  const selectedCols = columnIds.map(id => {
+  // 1. Expand DYNAMIC_COLUMNS
+  let expandedColumnIds: string[] = [];
+  columnIds.forEach(id => {
+    if (id === 'DYNAMIC_COLUMNS') {
+      if (estimate?.custom_columns?.length > 0) {
+        estimate.custom_columns.forEach((col: string) => {
+          expandedColumnIds.push(`custom_${col}`);
+        });
+      }
+    } else {
+      expandedColumnIds.push(id);
+    }
+  });
+
+  // 2. Resolve Column Definitions
+  const selectedCols = expandedColumnIds.map(id => {
+    if (id.startsWith('custom_') || id.startsWith('CUSTOM_')) {
+      return { id, label: id.replace(/^custom_/i, '') };
+    }
     return EXCEL_AVAILABLE_COLUMNS.find(c => c.id === id) || { id, label: id };
   });
 
-  // 2. 헤더 행 생성
+  // 3. Create Header Row
   const headerRow = selectedCols.map(col => col.label);
 
-  // 3. 데이터 행 생성
+  // 4. Create Data Rows
   const dataRows = items.map(item => {
     return selectedCols.map(col => {
-      const value = item[col.id];
-      // 숫자인 경우 그대로, 그 외엔 빈 문자열이나 텍스트
+      let value = item[col.id];
+      
+      // Look into custom_costs if it's a dynamic column
+      if ((col.id.startsWith('custom_') || col.id.startsWith('CUSTOM_')) && item.custom_costs) {
+        value = item.custom_costs[col.label];
+      }
+      
+      // Keep number types intact, fallback to empty string
       return value !== undefined && value !== null ? value : '';
     });
   });

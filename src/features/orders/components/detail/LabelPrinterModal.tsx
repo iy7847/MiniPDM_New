@@ -3,7 +3,10 @@ import { supabase } from '../../../../shared/services/supabase';
 import Barcode from 'react-barcode';
 import { useReactToPrint } from 'react-to-print';
 import { Button, Card, BaseInput } from '../../../../design-system';
-import { X, Printer, CheckSquare, Square, Settings2 } from 'lucide-react';
+import { X, Printer, CheckSquare, Square, Settings2, GripVertical } from 'lucide-react';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import type { DropResult } from '@hello-pangea/dnd';
+import { toast } from '../../../../shared/stores/useToastStore';
 import type { Order, OrderItem } from '../../types';
 
 interface LabelPrinterModalProps {
@@ -18,9 +21,9 @@ const AVAILABLE_FIELDS = [
   { id: 'part_name', label: '품명' },
   { id: 'part_no', label: '도면 번호' },
   { id: 'spec', label: '규격' },
-  { id: 'material_name', label: '재질/소재' },
-  { id: 'qty', label: '수량' },
+  { id: 'material_qty', label: '재질 + 수량' },
   { id: 'post_processing_name', label: '후처리' },
+  { id: 'heat_treatment_name', label: '열처리' },
   { id: 'client_po_no', label: '고객사 PO' },
   { id: 'note', label: '비고' }
 ] as const;
@@ -34,7 +37,7 @@ export const LabelPrinterModal: React.FC<LabelPrinterModalProps> = ({
 }) => {
   const [labelWidth, setLabelWidth] = useState(55);
   const [labelHeight, setLabelHeight] = useState(35);
-  const [selectedFields, setSelectedFields] = useState<string[]>(['part_name', 'part_no', 'qty']);
+  const [selectedFields, setSelectedFields] = useState<string[]>(['part_name', 'part_no', 'material_qty']);
   
   const printRef = useRef(null);
 
@@ -49,8 +52,15 @@ export const LabelPrinterModal: React.FC<LabelPrinterModalProps> = ({
       try {
         const savedFields = localStorage.getItem('minipdm_label_fields');
         if (savedFields) {
-          const parsed = JSON.parse(savedFields);
+          let parsed = JSON.parse(savedFields);
           if (Array.isArray(parsed) && parsed.length > 0) {
+            // Migrate old 'material_name' or 'qty' to 'material_qty'
+            if (parsed.includes('material_name') || parsed.includes('qty')) {
+              parsed = parsed.filter((id: string) => id !== 'material_name' && id !== 'qty');
+              if (!parsed.includes('material_qty')) {
+                parsed.push('material_qty');
+              }
+            }
             setSelectedFields(parsed);
           }
         }
@@ -87,8 +97,8 @@ export const LabelPrinterModal: React.FC<LabelPrinterModalProps> = ({
       if (newFields.includes(fieldId)) {
         newFields = newFields.filter(id => id !== fieldId);
       } else {
-        if (newFields.length >= 5) {
-          alert('최대 5개까지만 선택 가능합니다.');
+        if (newFields.length >= 6) {
+          toast.error('최대 6개까지만 선택 가능합니다.');
           return prev;
         }
         newFields.push(fieldId);
@@ -100,9 +110,35 @@ export const LabelPrinterModal: React.FC<LabelPrinterModalProps> = ({
     });
   };
 
+  const onDragEnd = (result: DropResult) => {
+    if (!result.destination) return;
+    const items = Array.from(selectedFields);
+    const [reorderedItem] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 0, reorderedItem);
+    setSelectedFields(items);
+    localStorage.setItem('minipdm_label_fields', JSON.stringify(items));
+  };
+
   const getFieldValue = (item: OrderItem, fieldId: string) => {
-    if (fieldId === 'qty') return `수량: ${item.qty}EA`;
-    if (fieldId === 'post_processing_name') return item.post_processing_name || (item as any).post_processing || '';
+    if (fieldId === 'material_qty') {
+      let code = '';
+      if (item.materials?.code) {
+        code = item.materials.code;
+      } else {
+        const name = item.material_name || '';
+        const match = name.match(/\(([^)]+)\)/);
+        code = match ? match[1].trim() : name.trim();
+      }
+      const qtyStr = `수량: ${item.qty}EA`;
+      if (code) return `${code} / ${qtyStr}`;
+      return qtyStr;
+    }
+    if (fieldId === 'post_processing_name') {
+      return item.post_processing_name || (item.estimate_items as any)?.post_processings?.name || (item as any).post_processing || '';
+    }
+    if (fieldId === 'heat_treatment_name') {
+      return (item as any).heat_treatment_name || (item.estimate_items as any)?.heat_treatments?.name || '';
+    }
     return (item as any)[fieldId] || '';
   };
 
@@ -129,43 +165,64 @@ export const LabelPrinterModal: React.FC<LabelPrinterModalProps> = ({
           <div className="w-full md:w-64 border-r border-border-default bg-bg-surface flex flex-col p-4 shrink-0 overflow-y-auto">
             <div className="flex items-center gap-2 mb-4">
               <Settings2 size={16} className="text-text-secondary" />
-              <h4 className="font-bold text-text-primary text-sm">표시 항목 설정 (최대 5개)</h4>
+              <h4 className="font-bold text-text-primary text-sm">표시 항목 설정 (최대 6개)</h4>
             </div>
             
-            <div className="flex flex-col gap-2 mb-6">
-              {AVAILABLE_FIELDS.map(field => {
-                const isSelected = selectedFields.includes(field.id);
-                const isDisabled = !isSelected && selectedFields.length >= 5;
-                
-                return (
-                  <label 
-                    key={field.id}
-                    className={`flex items-center gap-3 p-2 rounded border cursor-pointer transition-colors ${
-                      isSelected 
-                        ? 'border-emerald-500 bg-emerald-500/10' 
-                        : isDisabled
-                          ? 'border-border-default opacity-50 cursor-not-allowed'
-                          : 'border-border-default hover:border-emerald-500/50 bg-bg-base'
-                    }`}
-                  >
-                    <input 
-                      type="checkbox"
-                      className="hidden"
-                      checked={isSelected}
-                      disabled={isDisabled}
-                      onChange={() => toggleField(field.id)}
-                    />
-                    {isSelected ? (
-                      <CheckSquare size={16} className="text-emerald-500 shrink-0" />
-                    ) : (
-                      <Square size={16} className="text-text-secondary shrink-0" />
+            <div className="flex flex-col gap-6 mb-6">
+              <div>
+                <h5 className="text-xs font-bold text-text-secondary mb-2">선택된 항목 (드래그하여 순서 변경)</h5>
+                <DragDropContext onDragEnd={onDragEnd}>
+                  <Droppable droppableId="selected-fields">
+                    {(provided) => (
+                      <div {...provided.droppableProps} ref={provided.innerRef} className="flex flex-col gap-2">
+                        {selectedFields.map((fieldId, index) => {
+                          const field = AVAILABLE_FIELDS.find(f => f.id === fieldId);
+                          if (!field) return null;
+                          return (
+                            <Draggable key={fieldId} draggableId={fieldId} index={index}>
+                              {(provided) => (
+                                <div
+                                  ref={provided.innerRef}
+                                  {...provided.draggableProps}
+                                  className="flex items-center gap-2 p-2 rounded border border-emerald-500 bg-emerald-500/10"
+                                >
+                                  <div {...provided.dragHandleProps} className="text-emerald-500/50 hover:text-emerald-500 cursor-grab active:cursor-grabbing">
+                                    <GripVertical size={16} />
+                                  </div>
+                                  <span className="text-sm font-medium text-emerald-600 flex-1">{field.label}</span>
+                                  <button onClick={() => toggleField(fieldId)} className="text-emerald-500 hover:text-red-500 transition-colors">
+                                    <X size={16} />
+                                  </button>
+                                </div>
+                              )}
+                            </Draggable>
+                          );
+                        })}
+                        {provided.placeholder}
+                      </div>
                     )}
-                    <span className={`text-sm font-medium ${isSelected ? 'text-emerald-600' : 'text-text-primary'}`}>
-                      {field.label}
-                    </span>
-                  </label>
-                );
-              })}
+                  </Droppable>
+                </DragDropContext>
+                {selectedFields.length === 0 && (
+                  <div className="text-xs text-text-secondary italic">선택된 항목이 없습니다.</div>
+                )}
+              </div>
+
+              <div>
+                <h5 className="text-xs font-bold text-text-secondary mb-2">추가할 항목</h5>
+                <div className="flex flex-wrap gap-2">
+                  {AVAILABLE_FIELDS.filter(f => !selectedFields.includes(f.id)).map(field => (
+                    <button
+                      key={field.id}
+                      onClick={() => toggleField(field.id)}
+                      disabled={selectedFields.length >= 6}
+                      className="px-3 py-1.5 rounded border border-border-default bg-bg-base text-sm text-text-primary hover:border-emerald-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      + {field.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             <div className="mt-auto border-t border-border-default pt-4">
@@ -185,6 +242,16 @@ export const LabelPrinterModal: React.FC<LabelPrinterModalProps> = ({
                   className="w-full text-center h-8"
                 />
               </div>
+              
+              {(() => {
+                const minHeight = 17 + (Math.max(0, selectedFields.length - 1) * 3);
+                const isTooSmall = labelHeight < minHeight;
+                return (
+                  <div className={`mt-2 text-xs ${isTooSmall ? 'text-red-400 font-bold' : 'text-text-secondary'}`}>
+                    {isTooSmall ? `⚠️ 세로 크기가 너무 작습니다.` : `권장 최소 세로:`} <span className="font-mono">{minHeight}mm</span>
+                  </div>
+                );
+              })()}
             </div>
           </div>
 

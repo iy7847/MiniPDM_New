@@ -18,16 +18,28 @@ export const EXCEL_AVAILABLE_COLUMNS = [
   { id: 'note', label: '비고' }
 ];
 
+import { useSettingsStore } from '@/shared/stores/useSettingsStore';
+import { useConfirm } from '@/app/providers/ConfirmProvider';
+
 interface ExcelPresetTabProps {
   presets: ExcelExportPreset[];
   onAdd: (name: string) => void;
   onDelete: (id: string) => void;
-  onUpdateColumns: (id: string, columns: string[]) => void;
+  onUpdate: (preset: ExcelExportPreset) => void;
 }
 
-export const ExcelPresetTab: React.FC<ExcelPresetTabProps> = ({ presets, onAdd, onDelete, onUpdateColumns }) => {
+export const ExcelPresetTab: React.FC<ExcelPresetTabProps> = ({ presets, onAdd, onDelete, onUpdate }) => {
   const [newPresetName, setNewPresetName] = useState('');
   const [draggedItemIndex, setDraggedItemIndex] = useState<number | null>(null);
+  
+  const { settings } = useSettingsStore();
+  const { confirm } = useConfirm();
+  const customCols = settings?.custom_estimate_columns || [];
+  
+  const availableColumns = [
+    ...EXCEL_AVAILABLE_COLUMNS,
+    ...customCols.map(col => ({ id: `CUSTOM_${col}`, label: `(커스텀) ${col}` }))
+  ];
 
   const handleAdd = () => {
     if (!newPresetName.trim()) return;
@@ -108,10 +120,14 @@ export const ExcelPresetTab: React.FC<ExcelPresetTabProps> = ({ presets, onAdd, 
                 <div className="flex items-center gap-3">
                   <Pin className="w-5 h-5 text-text-muted group-hover:text-brand-500 transition-colors" />
                   <h4 className="font-black text-xl text-text-primary tracking-tight">{preset.name}</h4>
-                  <span className="px-2 py-0.5 bg-brand-bg text-brand-500 text-[10px] font-black rounded-lg border border-brand-500/20">{preset.columns?.length || 0} columns</span>
+                  <span className="px-2 py-0.5 bg-brand-500/10 text-brand-400 text-[10px] font-black rounded-lg border border-brand-500/20">{preset.columns?.length || 0} columns</span>
                 </div>
                 <button
-                  onClick={() => window.confirm('삭제하시겠습니까?') && onDelete(preset.id)}
+                  onClick={async () => {
+                    if (await confirm({ title: '프리셋 삭제', description: '정말로 이 프리셋을 삭제하시겠습니까?', isDanger: true })) {
+                      onDelete(preset.id);
+                    }
+                  }}
                   className="p-2 text-text-muted hover:text-danger hover:bg-danger-bg rounded-xl transition-all"
                   title="프리셋 삭제"
                 >
@@ -124,11 +140,11 @@ export const ExcelPresetTab: React.FC<ExcelPresetTabProps> = ({ presets, onAdd, 
                 <div className="flex flex-col bg-bg-surface rounded-2xl border border-border-default overflow-hidden h-[350px]">
                   <div className="bg-bg-overlay p-3 text-[10px] font-black text-text-muted uppercase tracking-widest text-center border-b border-border-default">Available Items</div>
                   <div className="p-3 space-y-2 overflow-y-auto flex-1">
-                    {EXCEL_AVAILABLE_COLUMNS.filter(col => !(preset.columns || []).includes(col.id)).map(col => (
+                    {availableColumns.filter(col => !(preset.columns || []).includes(col.id)).map(col => (
                       <button
                         key={col.id}
                         onClick={() => addColumnToPreset(preset, col.id)}
-                        className="w-full text-left px-4 py-2.5 bg-bg-elevated rounded-xl text-xs font-bold text-text-secondary border border-border-default shadow-sm hover:border-brand-500 hover:bg-brand-bg hover:text-brand-500 transition-all flex items-center justify-between group/add"
+                        className="w-full text-left px-4 py-2.5 bg-bg-elevated rounded-xl text-xs font-bold text-text-secondary border border-border-default shadow-sm hover:border-brand-500 hover:bg-brand-500/10 hover:text-brand-400 transition-all flex items-center justify-between group/add"
                       >
                         <span>{col.label}</span>
                         <Plus className="w-4 h-4 opacity-30 group-hover/add:opacity-100 transition-opacity" />
@@ -142,11 +158,11 @@ export const ExcelPresetTab: React.FC<ExcelPresetTabProps> = ({ presets, onAdd, 
                 </div>
 
                 {/* Selected Columns */}
-                <div className="flex flex-col bg-brand-bg rounded-2xl border border-brand-500 overflow-hidden h-[350px]">
+                <div className="flex flex-col bg-bg-surface rounded-2xl border border-brand-500/30 overflow-hidden h-[350px]">
                   <div className="bg-brand-500/10 p-3 text-[10px] font-black text-brand-400 uppercase tracking-widest text-center border-b border-brand-500/20">Selected Items (Drag to Sort)</div>
                   <div className="p-3 space-y-2 overflow-y-auto flex-1">
                     {(preset.columns || []).map((colId, index) => {
-                      const colDef = EXCEL_AVAILABLE_COLUMNS.find(c => c.id === colId);
+                      const colDef = availableColumns.find(c => c.id === colId);
                       return (
                         <div
                           key={colId}

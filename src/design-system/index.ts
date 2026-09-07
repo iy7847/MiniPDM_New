@@ -26,3 +26,5 @@ export * from './PageTabs';
 export * from './FilterBar';
 export * from './Checkbox';
 export * from './Table';
+export * from './StatusBadge';
+export * from './MaskedText';

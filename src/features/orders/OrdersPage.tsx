@@ -1,9 +1,10 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrderList } from './hooks/useOrderList';
-import { Badge, Button, BaseInput, Tabs, PageHeader, PageTabs, FilterBar } from '../../design-system';
-import { Search, Plus, List, ArrowRight, ArrowUpDown } from 'lucide-react';
+import { Badge, Button, BaseInput, Tabs, PageHeader, PageTabs, FilterBar, StatusBadge, MaskedText } from '../../design-system';
+import { Search, Plus, List, ArrowRight, ArrowUpDown, ShoppingCart } from 'lucide-react';
 import { CreateOrderModal } from './components/CreateOrderModal';
+import { usePermissions } from '@/shared/hooks/usePermissions';
 import {
   createColumnHelper,
   flexRender,
@@ -29,6 +30,7 @@ const columnHelper = createColumnHelper<any>();
 
 export const OrdersPage: React.FC = () => {
   const navigate = useNavigate();
+  const { hasPermission } = usePermissions();
   const {
     orders,
     clients,
@@ -56,7 +58,7 @@ export const OrdersPage: React.FC = () => {
   const pageSize = 15;
   const totalPages = Math.ceil(totalCount / pageSize);
 
-  const columns = [
+  const columns = React.useMemo(() => [
     columnHelper.accessor(row => row.po_no || row.order_number || row.id.slice(0,8), {
       id: 'po_no',
       header: 'PO 번호 (발주번호)',
@@ -87,7 +89,12 @@ export const OrdersPage: React.FC = () => {
     }),
     columnHelper.accessor('total_amount', {
       header: '수주금액',
-      cell: info => <span className="font-medium text-text-primary">{info.getValue()?.toLocaleString() || 0}원</span>,
+      cell: info => (
+        <MaskedText 
+          isVisible={hasPermission('can_view_margins')} 
+          value={<span className="font-medium text-text-primary">{info.getValue()?.toLocaleString() || 0}원</span>} 
+        />
+      ),
     }),
     columnHelper.accessor('delivery_date', {
       header: '납기일',
@@ -109,18 +116,11 @@ export const OrdersPage: React.FC = () => {
         const status = info.getValue();
         const shippingStatus = info.row.original.shipping_status;
         
-        let label = status;
-        let variant: any = 'default';
-        if (status === 'ORDERED' || status === 'PENDING') { label = '수주등록'; variant = 'primary'; }
-        else if (status === 'PRODUCTION') { label = '생산중'; variant = 'warning'; }
-        else if (status === 'INSPECTION') { label = '출하대기'; variant = 'success'; }
-        else if (status === 'DONE' || status === 'COMPLETED') { label = '완료'; variant = 'default'; }
-        
         return (
           <div className="flex items-center gap-1">
-            <Badge variant={variant}>{label}</Badge>
-            {shippingStatus === 'shipped' && <Badge variant="success">출하완료</Badge>}
-            {shippingStatus === 'partially_shipped' && <Badge variant="warning">부분출하</Badge>}
+            <StatusBadge type="order" status={status} />
+            {shippingStatus === 'shipped' && <StatusBadge type="shipping" status="shipped" />}
+            {shippingStatus === 'partially_shipped' && <StatusBadge type="shipping" status="partially_shipped" />}
           </div>
         );
       }
@@ -140,7 +140,7 @@ export const OrdersPage: React.FC = () => {
         </div>
       ),
     })
-  ];
+  ], [hasPermission, navigate]);
 
   const table = useReactTable({
     data: orders,
@@ -158,7 +158,9 @@ export const OrdersPage: React.FC = () => {
       {/* Header */}
       <div className="p-6 pb-0">
         <PageHeader
+          icon={ShoppingCart}
           title="수주 관리"
+          description="고객사로부터 접수된 수주를 등록·관리하고 생산 공정으로 이관합니다."
           actions={
             <Button
               variant="primary"

@@ -1,31 +1,35 @@
-import fs from 'fs';
-import pkg from 'pg';
-const { Client } = pkg;
+const fs = require('fs');
+const { Client } = require('pg');
+require('dotenv').config();
 
-// Read .env file manually
-const envContent = fs.readFileSync('.env', 'utf8');
-const dbUrlMatch = envContent.match(/^DATABASE_URL=(.*)$/m);
-if (!dbUrlMatch) {
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
   console.error('DATABASE_URL not found in .env');
   process.exit(1);
 }
-const dbUrl = dbUrlMatch[1].trim();
 
 const client = new Client({
-  connectionString: dbUrl,
+  connectionString,
 });
 
-async function run() {
+async function runMigration() {
   try {
     await client.connect();
-    const sql = fs.readFileSync('supabase/migrations/20260812000001_release_production_orders.sql', 'utf8');
+    console.log('Connected to DB');
+
+    const sql = fs.readFileSync('supabase/migrations/20260826224201_add_process_routing_tables.sql', 'utf8');
+    
+    await client.query('BEGIN');
     await client.query(sql);
-    console.log('Migration successfully applied!');
+    await client.query('COMMIT');
+    
+    console.log('Migration successfully applied.');
   } catch (err) {
-    console.error('Error applying migration:', err);
+    await client.query('ROLLBACK');
+    console.error('Error running migration:', err);
   } finally {
     await client.end();
   }
 }
 
-run();
+runMigration();

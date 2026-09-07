@@ -1,7 +1,7 @@
 import React from 'react';
-import { Card, Badge, CountUp } from '../../design-system';
+import { Card, Badge, CountUp, PageHeader } from '../../design-system';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { ArrowUpRight, ArrowDownRight, Clock, AlertTriangle } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, Clock, AlertTriangle, LayoutDashboard } from 'lucide-react';
 import { useDashboardStats } from './hooks/useDashboardStats';
 
 export const DashboardPage: React.FC = () => {
@@ -14,16 +14,20 @@ export const DashboardPage: React.FC = () => {
   if (loading || !stats) {
     return (
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <h1 className="text-2xl font-bold">대시보드</h1>
+        <PageHeader 
+          icon={LayoutDashboard}
+          title="종합 대시보드" 
+          description="견적, 수주, 생산, 매출 현황을 실시간으로 종합 모니터링합니다."
+        />
         
         {/* KPI Cards Skeleton */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => (
             <Card key={i} className="p-5 flex flex-col gap-2">
-              <div className="h-4 w-20 bg-border rounded animate-pulse"></div>
+              <div className="h-4 w-20 bg-bg-elevated/80 rounded animate-pulse"></div>
               <div className="flex items-end justify-between mt-2">
-                <div className="h-8 w-32 bg-border rounded animate-pulse"></div>
-                <div className="h-4 w-12 bg-border rounded animate-pulse"></div>
+                <div className="h-8 w-32 bg-bg-elevated/80 rounded animate-pulse"></div>
+                <div className="h-4 w-12 bg-bg-elevated/80 rounded animate-pulse"></div>
               </div>
             </Card>
           ))}
@@ -33,15 +37,15 @@ export const DashboardPage: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <Card className="lg:col-span-2 p-5 flex flex-col gap-4">
             <div className="flex items-center justify-between">
-              <div className="h-6 w-32 bg-border rounded animate-pulse"></div>
-              <div className="h-8 w-24 bg-border rounded animate-pulse"></div>
+              <div className="h-6 w-32 bg-bg-elevated/80 rounded animate-pulse"></div>
+              <div className="h-8 w-24 bg-bg-elevated/80 rounded animate-pulse"></div>
             </div>
-            <div className="h-[300px] w-full mt-4 bg-border/50 rounded animate-pulse"></div>
+            <div className="h-[300px] w-full mt-4 bg-bg-elevated/50 rounded animate-pulse"></div>
           </Card>
 
           <Card className="p-5 flex flex-col gap-4">
             <div className="flex items-center justify-between border-b border-border-default pb-3">
-              <div className="h-6 w-32 bg-border rounded animate-pulse"></div>
+              <div className="h-6 w-32 bg-bg-elevated/80 rounded animate-pulse"></div>
             </div>
             <div className="flex flex-col gap-3">
               {[1, 2, 3, 4].map((i) => (
@@ -56,7 +60,11 @@ export const DashboardPage: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <h1 className="text-2xl font-bold">대시보드</h1>
+      <PageHeader 
+        icon={LayoutDashboard}
+        title="종합 대시보드" 
+        description="견적, 수주, 생산, 매출 현황을 실시간으로 종합 모니터링합니다."
+      />
       
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

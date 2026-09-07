@@ -25,7 +25,7 @@ interface OrderItemsTableProps {
   onOpenHistorySearch?: () => void;
   onAddEmptyItem?: () => void;
   onDeleteItem?: (id: string) => void;
-  onFilesDrop?: (files: File[]) => void;
+  onAddMaskedFile?: (itemId: string, files: File[]) => void;
   showForeign?: boolean;
   currency?: string;
   exchangeRate?: number;
@@ -166,6 +166,7 @@ export const OrderItemsTable: React.FC<OrderItemsTableProps> = ({
   onRemoveFile,
   onRemoveSingleFile,
   onRemoveMultipleFiles,
+  onAddMaskedFile,
   onOrderItemNoChange,
   onPriceChange,
   onFieldChange,
@@ -243,9 +244,10 @@ export const OrderItemsTable: React.FC<OrderItemsTableProps> = ({
         <div className="flex justify-center w-full">
           <input
             type="checkbox"
-            className="w-4 h-4 rounded border-border-strong text-brand-500 focus:ring-brand-500 bg-bg-surface cursor-pointer"
+            className={`w-4 h-4 rounded border-border-strong text-brand-500 focus:ring-brand-500 bg-bg-surface ${row.original.production_status === 'CANCELLED' ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
             checked={selectedItems.includes(row.original.id)}
             onChange={(e) => onSelectItem && onSelectItem(row.original.id, e.target.checked)}
+            disabled={row.original.production_status === 'CANCELLED'}
           />
         </div>
       ),
@@ -256,6 +258,13 @@ export const OrderItemsTable: React.FC<OrderItemsTableProps> = ({
       header: '진행 상태',
       cell: ({ row }) => {
         const status = row.original.production_status || 'PENDING';
+        if (status === 'CANCELLED') {
+          return (
+            <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-danger/10 text-danger border border-danger/30 whitespace-nowrap">
+              ❌ 취소됨
+            </span>
+          );
+        }
         if (status === 'PRODUCTION_READY') {
           return (
             <button 
@@ -314,7 +323,7 @@ export const OrderItemsTable: React.FC<OrderItemsTableProps> = ({
           placeholder="품명 입력"
           onChange={(val) => onFieldChange && onFieldChange(row.original.id, 'part_name', val)}
           className="font-medium"
-          isLocked={isLocked || row.original.production_status === 'PRODUCTION_READY'}
+          isLocked={true}
         />
       ),
       size: 150,
@@ -327,7 +336,7 @@ export const OrderItemsTable: React.FC<OrderItemsTableProps> = ({
           placeholder="도면 번호 입력"
           onChange={(val) => onFieldChange && onFieldChange(row.original.id, 'part_no', val)}
           className="font-mono text-text-secondary"
-          isLocked={isLocked || row.original.production_status === 'PRODUCTION_READY'}
+          isLocked={true}
         />
       ),
       size: 110,
@@ -340,7 +349,7 @@ export const OrderItemsTable: React.FC<OrderItemsTableProps> = ({
           placeholder="규격 입력"
           onChange={(val) => onFieldChange && onFieldChange(row.original.id, 'spec', val)}
           className="text-text-secondary"
-          isLocked={isLocked || row.original.production_status === 'PRODUCTION_READY'}
+          isLocked={true}
         />
       ),
       size: 120,
@@ -434,7 +443,7 @@ export const OrderItemsTable: React.FC<OrderItemsTableProps> = ({
             value={displaySupplyPrice}
             className="text-brand-400 font-bold"
             onChange={(val) => handlePriceChange(item.id, 'supply_price', val)}
-            isLocked={isLocked || row.original.production_status === 'PRODUCTION_READY'}
+            isLocked={true}
           />
         );
       },
@@ -591,22 +600,30 @@ export const OrderItemsTable: React.FC<OrderItemsTableProps> = ({
               ))}
             </thead>
             <tbody>
-              {table.getRowModel().rows.map(row => (
+              {table.getRowModel().rows.map(row => {
+                const isCancelled = row.original.production_status === 'CANCELLED';
+                return (
                 <tr 
                   key={row.id}
-                  className={`border-b border-border-default/50 transition-colors ${selectedItems.includes(row.original.id) ? 'bg-brand-500/5' : 'hover:bg-bg-elevated/50'}`}
+                  className={`border-b border-border-default/50 transition-colors ${
+                    isCancelled 
+                      ? 'bg-bg-overlay/50 text-text-disabled line-through opacity-70' 
+                      : selectedItems.includes(row.original.id) 
+                        ? 'bg-brand-500/5' 
+                        : 'hover:bg-bg-elevated/50'
+                  }`}
                 >
                   {row.getVisibleCells().map(cell => (
                     <td 
                       key={cell.id} 
-                      className="px-2 py-2 truncate border-r border-border-default/30 last:border-r-0 align-middle"
+                      className={`px-2 py-2 truncate border-r border-border-default/30 last:border-r-0 align-middle ${isCancelled ? 'pointer-events-none' : ''}`}
                       style={{ width: ['part_name', 'spec', 'files'].includes(cell.column.id) ? 'auto' : cell.column.getSize() }}
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
         </div>
@@ -624,8 +641,8 @@ export const OrderItemsTable: React.FC<OrderItemsTableProps> = ({
           }
           
           // 새로 생성된 마스킹 파일을 배열에 추가 (기존 파일 교체 효과)
-          if (onFilesDrop) {
-            onFilesDrop([newFile]);
+          if (onAddMaskedFile) {
+            onAddMaskedFile(maskingItemId, [newFile]);
           }
         }} 
       />
@@ -637,14 +654,6 @@ export const OrderItemsTable: React.FC<OrderItemsTableProps> = ({
       />
     </div>
   );
-
-  if (onFilesDrop) {
-    return (
-      <FileDropZone onFilesDrop={onFilesDrop}>
-        {renderContent()}
-      </FileDropZone>
-    );
-  }
 
   return renderContent();
 };

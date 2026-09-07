@@ -5,6 +5,7 @@ import type { CompanySettings, CustomTemplate } from '../services/settingsServic
 import { FileText, Lightbulb, Plus, Edit, Copy, Trash2, Eye } from 'lucide-react';
 import { TemplateBuilderModal } from '../components/builder/TemplateBuilderModal';
 import { useSettingsStore } from '@/shared/stores/useSettingsStore';
+import { useConfirm } from '@/app/providers/ConfirmProvider';
 
 interface TemplateTabProps {
   form: Partial<CompanySettings>;
@@ -15,6 +16,7 @@ export const TemplateTab: React.FC<TemplateTabProps> = ({ form, updateForm }) =>
   const [isBuilderOpen, setIsBuilderOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<CustomTemplate | undefined>(undefined);
   const { customTemplates, addCustomTemplate, deleteCustomTemplate } = useSettingsStore();
+  const { confirm } = useConfirm();
 
   const handleOpenBuilder = (template?: CustomTemplate) => {
     setEditingTemplate(template);
@@ -31,7 +33,7 @@ export const TemplateTab: React.FC<TemplateTabProps> = ({ form, updateForm }) =>
   };
 
   const handleDeleteTemplate = async (id: string) => {
-    if (confirm('정말로 이 양식을 삭제하시겠습니까?')) {
+    if (await confirm({ title: '양식 삭제', description: '정말로 이 양식을 삭제하시겠습니까?', isDanger: true })) {
       await deleteCustomTemplate(id);
       if (form.quotation_template_type === `custom_${id}`) {
         updateForm('quotation_template_type', 'standard');
@@ -39,22 +41,29 @@ export const TemplateTab: React.FC<TemplateTabProps> = ({ form, updateForm }) =>
     }
   };
 
-  const handleSelectImage = async (field: 'logo_path' | 'seal_path') => {
-    // @ts-ignore
-    if (window.fileSystem && window.fileSystem.selectImage) {
-      // @ts-ignore
-      const path = await window.fileSystem.selectImage();
-      if (path) updateForm(field, path);
-    } else {
-      alert('Electron 환경에서만 파일 선택이 가능합니다.');
-    }
+  const handleSelectImage = (field: 'logo_path' | 'seal_path') => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (e: any) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const base64 = event.target?.result as string;
+          if (base64) updateForm(field, base64);
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+    input.click();
   };
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <Card className="bg-bg-surface p-6 shadow-soft border-0">
         <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border-default">
-          <div className="p-2 bg-brand-bg rounded-xl">
+          <div className="p-2 bg-brand-500/10 rounded-xl">
             <FileText className="w-5 h-5 text-brand-500" />
           </div>
           <h3 className="font-black text-text-primary uppercase tracking-tight">견적서 양식 및 자산 (Assets)</h3>
@@ -72,7 +81,7 @@ export const TemplateTab: React.FC<TemplateTabProps> = ({ form, updateForm }) =>
                 onClick={() => updateForm('quotation_template_type', 'standard')}
                 className={`group cursor-pointer relative border-2 rounded-2xl p-6 flex flex-col items-center gap-4 transition-all duration-300 ${
                   isSelected
-                    ? 'border-brand-500 bg-brand-bg shadow-soft scale-[1.02]'
+                    ? 'border-brand-500 bg-brand-500/10 shadow-soft scale-[1.02]'
                     : 'border-border-default bg-bg-elevated hover:bg-bg-overlay'
                 }`}
               >
@@ -114,7 +123,7 @@ export const TemplateTab: React.FC<TemplateTabProps> = ({ form, updateForm }) =>
                 onClick={() => updateForm('quotation_template_type', `custom_${tpl.id}`)}
                 className={`group cursor-pointer relative border-2 rounded-2xl p-6 flex flex-col items-center gap-4 transition-all duration-300 ${
                   isSelected
-                    ? 'border-brand-500 bg-brand-bg shadow-soft scale-[1.02]'
+                    ? 'border-brand-500 bg-brand-500/10 shadow-soft scale-[1.02]'
                     : 'border-border-default bg-bg-elevated hover:bg-bg-overlay'
                 }`}
               >

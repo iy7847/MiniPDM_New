@@ -1,16 +1,32 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { authService } from './services/authService';
+import { ForgotPasswordModal } from './components/ForgotPasswordModal';
 import { Lock, Mail, Activity, ArrowRight, CheckCircle2 } from 'lucide-react';
+import kepLogo from '@/assets/kep_logo.png';
+import { appStorage } from '@/shared/services/persistentStorage';
+
+const SAVED_EMAIL_KEY = 'minipdm_saved_email';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [email, setEmail] = useState('');
+  const savedEmail = appStorage.getItem(SAVED_EMAIL_KEY) || '';
+  const [email, setEmail] = useState(location.state?.email || savedEmail);
   const [password, setPassword] = useState('');
+  const [rememberEmail, setRememberEmail] = useState(!!savedEmail);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
   const successMessage = location.state?.message;
+
+  React.useEffect(() => {
+    const saved = appStorage.getItem(SAVED_EMAIL_KEY);
+    if (saved && !email) {
+      setEmail(saved);
+      setRememberEmail(true);
+    }
+  }, [email]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,9 +34,21 @@ export const LoginPage: React.FC = () => {
     setLoading(true);
     try {
       await authService.login({ email, password });
+      if (rememberEmail) {
+        appStorage.setItem(SAVED_EMAIL_KEY, email);
+      } else {
+        appStorage.removeItem(SAVED_EMAIL_KEY);
+      }
       navigate('/');
     } catch (err: any) {
-      setError(err.message || '이메일 또는 비밀번호가 올바르지 않습니다.');
+      const msg = err.message || '';
+      if (msg.includes('Invalid login credentials') || msg.includes('invalid_credentials')) {
+        setError('이메일 또는 비밀번호가 올바르지 않습니다.');
+      } else if (msg.includes('Email not confirmed')) {
+        setError('이메일 인증이 완료되지 않았습니다. 메일함을 확인해주세요.');
+      } else {
+        setError(msg || '이메일 또는 비밀번호가 올바르지 않습니다.');
+      }
     } finally {
       setLoading(false);
     }
@@ -35,11 +63,14 @@ export const LoginPage: React.FC = () => {
         <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-brand-500/5 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-8">
-            <div className="flex items-center justify-center w-12 h-12 bg-brand-500/10 text-brand-500 rounded-xl border border-brand-500/20 shadow-[0_0_15px_rgba(14,165,233,0.3)]">
-              <Activity size={24} />
+          <div className="flex items-center gap-3.5 mb-8">
+            <div className="relative w-12 h-12 rounded-xl overflow-hidden border border-brand-500/30 shadow-[0_0_20px_rgba(14,165,233,0.3)] shrink-0">
+              <img src={kepLogo} alt="KEP" className="w-full h-full object-cover" />
             </div>
-            <h1 className="text-3xl font-bold tracking-tight">MiniPDM</h1>
+            <div>
+              <div className="text-[10px] font-black tracking-widest text-brand-400 uppercase leading-none">KEP SOLUTION</div>
+              <h1 className="text-2xl font-black tracking-tight text-white mt-0.5">MiniPDM <span className="text-brand-400 font-bold text-sm">v2.0</span></h1>
+            </div>
           </div>
           <h2 className="text-4xl font-extrabold leading-tight mb-6 mt-16 animate-in fade-in slide-in-from-bottom-4 duration-700">
             스마트 제조의<br />새로운 기준
@@ -52,6 +83,9 @@ export const LoginPage: React.FC = () => {
         <div className="relative z-10 border-l-2 border-brand-500 pl-6 animate-in fade-in slide-in-from-bottom-6 duration-700 delay-300">
           <p className="text-sm text-[#8B949E]">
             "기존 프로세스의 병목을 해소하고, 데이터 기반의 의사결정을 지원합니다."
+          </p>
+          <p className="text-xs text-[#8B949E]/60 mt-3 font-mono">
+            &copy; 2026 KEP (kendp.com). All rights reserved.
           </p>
         </div>
       </div>
@@ -112,7 +146,13 @@ export const LoginPage: React.FC = () => {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-medium text-[#8B949E]" htmlFor="password">비밀번호</label>
-                  <a href="#" className="text-xs text-brand-500 hover:text-brand-500/80 transition-colors">비밀번호 찾기</a>
+                  <button
+                    type="button"
+                    onClick={() => setIsForgotModalOpen(true)}
+                    className="text-xs text-brand-500 hover:text-brand-500/80 transition-colors"
+                  >
+                    비밀번호 찾기
+                  </button>
                 </div>
                 <div className="relative group">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#8B949E] group-focus-within:text-brand-500 transition-colors">
@@ -128,6 +168,19 @@ export const LoginPage: React.FC = () => {
                     placeholder="••••••••"
                   />
                 </div>
+              </div>
+
+              <div className="flex items-center justify-between text-sm">
+                <label className="flex items-center gap-2 text-[#8B949E] hover:text-white cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={rememberEmail}
+                    onChange={(e) => setRememberEmail(e.target.checked)}
+                    className="w-4 h-4 rounded border-[#30363D] bg-[#0D1117] text-brand-500 focus:ring-brand-500/20 focus:ring-offset-0 transition-colors accent-brand-500"
+                  />
+                  <span>이메일 기억하기</span>
+                </label>
+                <span className="text-xs text-brand-400/80 font-medium">자동 로그인 유지됨</span>
               </div>
 
               <button
@@ -147,6 +200,13 @@ export const LoginPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* 비밀번호 찾기 모달 */}
+      <ForgotPasswordModal
+        isOpen={isForgotModalOpen}
+        onClose={() => setIsForgotModalOpen(false)}
+        defaultEmail={email}
+      />
     </div>
   );
 };

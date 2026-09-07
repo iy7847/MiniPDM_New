@@ -10,6 +10,7 @@ interface UserManagementState {
   updateUserPermissions: (userId: string, permissions: Partial<UserPermissions>) => Promise<void>;
   updateUserRole: (userId: string, role: string) => Promise<void>;
   updateUserProfile: (userId: string, updates: Partial<User>) => Promise<void>;
+  removeUserFromCompany: (userId: string) => Promise<void>;
 }
 
 export const useUserManagement = create<UserManagementState>((set, get) => ({
@@ -108,6 +109,31 @@ export const useUserManagement = create<UserManagementState>((set, get) => ({
       }));
     } catch (error: any) {
       set({ error: error.message, isLoading: false });
+    }
+  },
+
+  removeUserFromCompany: async (userId: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          company_id: null,
+          role: 'member',
+          group_id: null,
+          permissions: {},
+        })
+        .eq('id', userId);
+
+      if (error) throw error;
+
+      set(state => ({
+        users: state.users.filter(u => u.id !== userId),
+        isLoading: false
+      }));
+    } catch (error: any) {
+      set({ error: error.message, isLoading: false });
+      throw error;
     }
   }
 }));

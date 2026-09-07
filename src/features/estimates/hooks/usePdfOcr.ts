@@ -2,6 +2,7 @@ import { useState } from 'react';
 import Tesseract from 'tesseract.js';
 import { pdfjs } from 'react-pdf';
 import type { OcrResult, Mask } from '../components/SmartPdfTypes';
+import { toast } from '@/shared/stores/useToastStore';
 
 export function usePdfOcr(
   file: File | null,
@@ -10,10 +11,11 @@ export function usePdfOcr(
   setIsProcessing: (b: boolean) => void,
   setOcrResults?: React.Dispatch<React.SetStateAction<OcrResult[]>>,
   ocrMode?: 'part_no' | 'part_name' | 'material',
-  onOcrComplete?: (text: string) => void
+  onOcrComplete?: (text: string) => void,
+  initialMaskMode: boolean = false
 ) {
   const [masks, setMasks] = useState<Mask[]>([]);
-  const [isMaskMode, setIsMaskMode] = useState(false);
+  const [isMaskMode, setIsMaskMode] = useState(initialMaskMode);
 
   const handleDeleteMask = (index: number) => {
     const pageMasks = masks.filter(m => m.page === pageNumber);
@@ -89,7 +91,7 @@ export function usePdfOcr(
       }
     } catch (e) {
       console.error(e);
-      alert('OCR 처리 중 오류가 발생했습니다.');
+      toast.error('OCR 처리 중 오류가 발생했습니다.');
     } finally {
       setIsProcessing(false);
     }

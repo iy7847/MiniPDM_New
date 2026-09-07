@@ -112,7 +112,7 @@ const ReceivingCard = ({
 
   const handleReceive = async () => {
     if (inputQty <= 0 && !forceComplete) {
-      alert('입고 수량을 입력하거나 강제 입고 완료를 선택하세요.');
+      toast.error('입고 수량을 입력하거나 강제 입고 완료를 선택하세요.');
       return;
     }
     const res = await onReceive(inputQty, forceComplete);

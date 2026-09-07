@@ -1,5 +1,6 @@
 import React from 'react';
 import { Image } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import type { TemplateBlock } from '../../types/templateBuilder';
 import { getLocalImagePath } from './templateUtils';
 
@@ -31,24 +32,24 @@ export const BlockPreview: React.FC<BlockPreviewProps> = ({ block, form }) => {
       );
     case 'item_table':
       return (
-        <div className={`w-full h-full bg-white flex flex-col overflow-hidden ${block.theme === 'bordered' ? 'border border-gray-300' : ''}`} style={{ fontSize: (block as any).fontSize || 10 }}>
+        <div className={`w-full h-full bg-white flex flex-col overflow-hidden ${block.theme === 'bordered' ? 'border border-gray-300' : ''}`} style={{ fontSize: block.fontSize || 10 }}>
           <table className={`w-full text-center ${block.theme !== 'simple' ? 'border-collapse' : ''}`}>
             <thead>
-              <tr className={block.theme === 'striped' ? 'bg-gray-100' : 'bg-gray-50'}>
+              <tr style={{ backgroundColor: block.headerBgColor || (block.theme === 'striped' ? '#f3f4f6' : '#f9fafb') }}>
                 {block.columns.map((col: string) => (
-                  <th key={col} className={`p-1.5 font-bold ${block.theme !== 'simple' ? 'border border-gray-300' : ''}`}>{col}</th>
+                  <th key={col} className={`p-1.5 font-bold ${block.theme !== 'simple' ? 'border border-gray-300' : ''}`} style={{ height: block.rowHeight || 24 }}>{col}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               <tr>
                 {block.columns.map((col: string) => (
-                  <td key={`row1-${col}`} className={`p-1.5 text-gray-400 ${block.theme !== 'simple' ? 'border border-gray-300' : ''}`}>내용</td>
+                  <td key={`row1-${col}`} className={`p-1.5 text-gray-400 ${block.theme !== 'simple' ? 'border border-gray-300' : ''}`} style={{ height: block.rowHeight || 24 }}>내용</td>
                 ))}
               </tr>
               <tr className={block.theme === 'striped' ? 'bg-gray-50' : ''}>
                 {block.columns.map((col: string) => (
-                  <td key={`row2-${col}`} className={`p-1.5 text-gray-400 ${block.theme !== 'simple' ? 'border border-gray-300' : ''}`}>내용</td>
+                  <td key={`row2-${col}`} className={`p-1.5 text-gray-400 ${block.theme !== 'simple' ? 'border border-gray-300' : ''}`} style={{ height: block.rowHeight || 24 }}>내용</td>
                 ))}
               </tr>
             </tbody>
@@ -167,6 +168,44 @@ export const BlockPreview: React.FC<BlockPreviewProps> = ({ block, form }) => {
             <span className="font-bold text-blue-700" style={{ fontSize: (block as any).fontSize ? (block as any).fontSize * 2 : 24 }}>(￦ 1,000,000)</span>
             {(block as any).showVatNote && <span className="text-gray-600 mt-1" style={{ fontSize: (block as any).fontSize || 12 }}>(VAT 별도)</span>}
           </div>
+        </div>
+      );
+    case 'free_text':
+      // Very basic preview of dynamic variables
+      let textContent = block.text || '여기에 텍스트를 입력하세요.';
+      textContent = textContent.replace(/{고객사명}/g, '(고객사명)');
+      textContent = textContent.replace(/{견적총액}/g, '(견적총액)');
+      textContent = textContent.replace(/{견적번호}/g, '(견적번호)');
+      textContent = textContent.replace(/{작성일자}/g, '2024-01-01');
+      return (
+        <div className="w-full h-full whitespace-pre-wrap" style={{ fontSize: block.fontSize || 12, textAlign: block.align || 'left', fontWeight: block.fontWeight || 'normal' }}>
+          {textContent}
+        </div>
+      );
+    case 'approval_line':
+      const titles = block.titles || ['담당', '검토', '승인'];
+      const boxWidth = block.boxWidth || 60;
+      return (
+        <div className="flex h-full border border-gray-400 bg-white" style={{ width: 'fit-content' }}>
+          <div className="w-6 border-r border-gray-400 flex items-center justify-center bg-gray-100">
+            <span className="text-[10px] font-bold" style={{ writingMode: 'vertical-rl' }}>결재</span>
+          </div>
+          {titles.map((title: string, i: number) => (
+            <div key={i} className={`flex flex-col ${i < titles.length - 1 ? 'border-r border-gray-400' : ''}`} style={{ width: boxWidth }}>
+              <div className="h-6 border-b border-gray-400 flex items-center justify-center bg-gray-50 text-[10px] font-bold">
+                {title}
+              </div>
+              <div className="flex-1 flex items-center justify-center">
+                {/* 빈 공간 (도장) */}
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    case 'qrcode':
+      return (
+        <div className="w-full h-full flex flex-col items-center justify-center">
+          <QRCodeSVG value="SAMPLE_DATA" size={block.size || 60} />
         </div>
       );
     default:

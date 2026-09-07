@@ -1,9 +1,6 @@
-# 🚀 MiniPDM v2.0 — 완전 재구성 프로젝트 지침서
-
-> **작성일**: 2026-07-01  
-> **기준 버전**: MiniPDM v0.3.1 (기존 앱)  
-> **목표 버전**: MiniPDM v2.0 (완전 재설계)  
-> **개발 경로**: `D:\06_Coding\AntiGravity\MiniPDM_New`
+> ⚠️ **[문서 통합 안내]**  
+> 본 문서의 모든 최신 설계, 디자인 토큰, 아키텍처 및 7단계 개발 로드맵은 **[`docs/ARCHITECTURE.md`](file:///D:/06_Coding/AntiGravity/MiniPDM_New/docs/ARCHITECTURE.md)**로 완전 통합되었습니다.  
+> 시스템 설계 및 최신 상태 파악 시 `docs/ARCHITECTURE.md`를 최우선으로 참조하세요.
 
 ---
 

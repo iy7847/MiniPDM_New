@@ -4,6 +4,9 @@ import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { CommandPalette } from '../features/search/CommandPalette';
 import { NotificationDrawer } from '../features/notifications/NotificationDrawer';
+import { GlobalScanner } from './GlobalScanner';
+import { LicenseBanner } from './components/LicenseBanner';
+import { LicenseBlockedOverlay } from './components/LicenseBlockedOverlay';
 
 export const AppShell: React.FC = () => {
   return (
@@ -11,12 +14,15 @@ export const AppShell: React.FC = () => {
       <Sidebar />
       <div className="flex flex-col flex-1 overflow-hidden">
         <TopBar />
+        <LicenseBanner />
         <main className="flex-1 overflow-auto p-6">
           <Outlet />
         </main>
       </div>
       <CommandPalette />
       <NotificationDrawer />
+      <GlobalScanner />
+      <LicenseBlockedOverlay />
     </div>
   );
 };

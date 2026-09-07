@@ -14,6 +14,7 @@ export type ItemCalculatorParams = {
   heat_treatment_price: number; // price per kg
   post_process_price: number; // price per kg
   outsource_cost?: number;
+  custom_costs?: Record<string, number>;
   profit_rate?: number;
   qty?: number;
   rounding_unit?: number; // Defaults to 1000 if not provided
@@ -25,6 +26,7 @@ export const useItemCalculator = (params: ItemCalculatorParams) => {
       shape, raw_w, raw_d, raw_h, density, material_price,
       hourly_rate, process_time, difficulty,
       heat_treatment_price, post_process_price, outsource_cost = 0,
+      custom_costs = {},
       profit_rate = 0, qty = 1, rounding_unit = 1000
     } = params;
 
@@ -51,7 +53,8 @@ export const useItemCalculator = (params: ItemCalculatorParams) => {
     const post_process_cost = Math.round(weight * post_process_price);
 
     // 6. Unit Price
-    const base_cost = material_cost + processing_cost + heat_treatment_cost + post_process_cost + outsource_cost;
+    const custom_costs_total = Object.values(custom_costs).reduce((sum, cost) => sum + (Number(cost) || 0), 0);
+    const base_cost = material_cost + processing_cost + heat_treatment_cost + post_process_cost + outsource_cost + custom_costs_total;
     const profit = base_cost * (profit_rate / 100);
     const sub_total = base_cost + profit;
 

@@ -89,9 +89,16 @@ export const MaterialModal: React.FC<MaterialModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg-overlay/80 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-bg-surface w-full max-w-2xl max-h-[90vh] rounded-xl shadow-2xl flex flex-col relative z-10 overflow-hidden ring-1 ring-border-default/50">
         <div className="flex items-center justify-between p-6 border-b border-border-default">
-          <h2 className="text-xl font-bold text-text-primary">
-            {initialData ? `${titleMap[type]} 수정` : `${titleMap[type]} 등록`}
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-bold text-text-primary">
+              {initialData ? `${titleMap[type]} 수정` : `${titleMap[type]} 등록`}
+            </h2>
+            {isReadOnly && (
+              <span className="px-2 py-0.5 rounded text-xs bg-bg-surface text-text-secondary border border-border-default font-medium">
+                조회 전용
+              </span>
+            )}
+          </div>
           <button onClick={onClose} className="p-2 text-text-secondary hover:text-text-primary transition-colors">
             <X className="w-5 h-5" />
           </button>
@@ -209,7 +216,7 @@ export const MaterialModal: React.FC<MaterialModalProps> = ({
                           <td className="p-2 text-center align-middle">
                             <button 
                               type="button" 
-                              className="text-text-muted hover:text-danger p-1.5 rounded-md hover:bg-danger-bg transition-colors"
+                              className="text-text-muted hover:text-danger p-1.5 rounded-md hover:bg-danger/10 transition-colors"
                               onClick={() => setSuppliers(prev => prev.filter((_, i) => i !== index))}
                             >
                               <Trash2 className="w-4 h-4" />
@@ -220,7 +227,7 @@ export const MaterialModal: React.FC<MaterialModalProps> = ({
                         <tr className="border-b border-border-default/50 last:border-0 hover:bg-bg-elevated/10 transition-colors">
                           <td colSpan={isReadOnly ? 3 : 4} className="px-2 pb-3 pt-1">
                             <textarea
-                              className="w-full min-h-[60px] px-3 py-2 bg-bg-surface border border-border-default rounded-md text-sm text-text-primary focus:outline-none focus:ring-[3px] focus:ring-brand-bg focus:border-brand-500 resize-y transition-all placeholder:text-text-muted shadow-sm"
+                              className="w-full min-h-[60px] px-3 py-2 bg-bg-surface border border-border-default rounded-md text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 resize-y transition-all placeholder:text-text-muted shadow-sm"
                               placeholder="비고 (특이사항, 리드타임 등 입력)..."
                               value={supplier.memo || ''}
                               onChange={e => {

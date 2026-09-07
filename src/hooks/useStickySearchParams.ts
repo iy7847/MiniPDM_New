@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useEffect, useState, useRef } from 'react';
+import { useSearchParams, useLocation } from 'react-router-dom';
 
 export type SearchParamsInit = Record<string, string> | URLSearchParams | string;
 
@@ -12,19 +12,21 @@ interface StickyState {
  * URL 파라미터를 기반으로 상태를 관리하며, 
  * sessionStorage를 통해 페이지를 벗어났다가 돌아와도 
  * 이전 검색 상태가 복원(Sticky)되도록 하는 커스텀 훅.
- * 
- * [개선 사항]
- * 1. 사용자가 의도적으로 모든 필터를 비운 상태(Clear)를 명시적으로 저장.
- * 2. 초기 렌더링 시 깜빡임(Double Fetch)을 방지하기 위한 isReady 플래그 제공.
  */
 export function useStickySearchParams(
   storageKey: string,
   defaultInit?: SearchParamsInit
 ) {
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
   const [isReady, setIsReady] = useState(false);
+  const defaultInitRef = useRef(defaultInit);
+  const isInitializedRef = useRef(false);
 
+  // 초기 마운트 시 파라미터 복원 또는 기본값 적용 (1회만 안전하게 실행)
   useEffect(() => {
+    if (isInitializedRef.current) return;
+
     const rawStored = sessionStorage.getItem(storageKey);
     const hasCurrentParams = Array.from(searchParams.keys()).length > 0;
 
@@ -33,30 +35,30 @@ export function useStickySearchParams(
         try {
           const stickyState: StickyState = JSON.parse(rawStored);
           if (stickyState.cleared) {
-            // 사용자가 의도적으로 비운 상태
             setIsReady(true);
+            isInitializedRef.current = true;
             return;
           }
           if (stickyState.params) {
-            // 저장된 파라미터가 있으면 URL 복원
             setSearchParams(new URLSearchParams(stickyState.params), { replace: true });
-            // setSearchParams가 완료되면 다음 렌더에서 파라미터가 있으므로 else 블록으로 감
+            setIsReady(true);
+            isInitializedRef.current = true;
             return;
           }
         } catch (e) {
-          // 하위 호환성 (구 버전 스토리지 데이터)
           setSearchParams(new URLSearchParams(rawStored), { replace: true });
+          setIsReady(true);
+          isInitializedRef.current = true;
           return;
         }
-      } else if (defaultInit) {
-        // 저장된 것도 없고 쿼리도 없으면 기본값 세팅
-        setSearchParams(defaultInit, { replace: true });
+      } else if (defaultInitRef.current) {
+        setSearchParams(defaultInitRef.current, { replace: true });
+        setIsReady(true);
+        isInitializedRef.current = true;
         return;
       }
     }
 
-    // URL 쿼리가 존재하는 상태 (복원 완료 또는 직접 진입)
-    // 현재 상태를 스토리지에 백업
     const currentString = searchParams.toString();
     const newState: StickyState = {
       cleared: currentString === '',
@@ -64,8 +66,19 @@ export function useStickySearchParams(
     };
     sessionStorage.setItem(storageKey, JSON.stringify(newState));
     setIsReady(true);
+    isInitializedRef.current = true;
+  }, [searchParams, setSearchParams, storageKey]);
 
-  }, [searchParams, setSearchParams, storageKey, defaultInit]);
+  // searchParams 변경 시 세션스토리지 동기화 (초기화 완료 후)
+  useEffect(() => {
+    if (!isInitializedRef.current) return;
+    const currentString = searchParams.toString();
+    const newState: StickyState = {
+      cleared: currentString === '',
+      params: currentString
+    };
+    sessionStorage.setItem(storageKey, JSON.stringify(newState));
+  }, [searchParams, storageKey]);
 
   // 파라미터 변경 함수 래퍼 (변경 시 sessionStorage에도 동시 저장)
   const setStickySearchParams = (

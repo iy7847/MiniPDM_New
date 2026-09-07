@@ -74,6 +74,14 @@
 | `default_profit_rate_step` | `numeric` | YES | 1 |
 | `alert_days_before_deadline` | `ARRAY` | YES | '{1,3,7}'::integer[] |
 | `theme` | `text` | YES | 'dark'::text |
+| `custom_estimate_columns` | `jsonb` | YES | '[]'::jsonb |
+| `license_status` | `text` | YES | 'ACTIVE'::text |
+| `license_plan` | `text` | YES | 'PRO'::text |
+| `trial_days` | `integer` | YES | 30 |
+| `license_expires_at` | `timestamp with time zone` | YES | (now() + '1 year'::interval) |
+| `max_users` | `integer` | YES | 5 |
+| `is_master_vendor` | `boolean` | YES | false |
+| `billing_memo` | `text` | YES | NULL |
 |---|---|---|---|
 
 ## 📄 Table: `custom_quotation_templates`
@@ -135,6 +143,7 @@
 | `outsource_company` | `text` | YES | NULL |
 | `calculated_price` | `numeric` | YES | NULL |
 | `order_status` | `character varying` | YES | 'PENDING'::character varying |
+| `custom_costs` | `jsonb` | YES | '{}'::jsonb |
 |---|---|---|---|
 
 ## 📄 Table: `estimates`
@@ -168,6 +177,7 @@
 | `exchange_rate` | `numeric` | YES | 1.0 |
 | `parent_estimate_id` | `uuid` | YES | NULL |
 | `version` | `integer` | YES | 1 |
+| `custom_columns` | `jsonb` | YES | '[]'::jsonb |
 |---|---|---|---|
 
 ## 📄 Table: `excel_export_presets`
@@ -279,15 +289,6 @@
 | `created_at` | `timestamp with time zone` | YES | now() |
 | `updated_at` | `timestamp with time zone` | YES | now() |
 |---|---|---|---|
-
-### `material_order_items` (🚫 [DEPRECATED] 더 이상 사용하지 않음)
-> **주의:** 1품목 1소재발주 (1:1 매칭) 아키텍처 도입으로 인해 이 테이블은 더 이상 사용되지 않습니다. (이전 묶음 발주 로직의 잔재)
-- `id` (uuid, PK)
-- `material_order_id` (uuid, FK to material_orders)
-- `order_item_id` (uuid, FK to order_items)
-- `required_qty` (integer)
-- `created_at` (timestamp with time zone)
-
 ## 📄 Table: `material_orders`
 
 | Column | Type | Nullable | Default |
@@ -395,6 +396,7 @@
 | `currency` | `text` | YES | 'KRW'::text |
 | `exchange_rate` | `numeric` | YES | 1.0 |
 | `post_processing_name` | `text` | YES | NULL |
+| `heat_treatment_name` | `text` | YES | NULL |
 | `production_type` | `character varying` | YES | 'INHOUSE'::character varying |
 | `production_note` | `text` | YES | NULL |
 | `completed_at` | `timestamp with time zone` | YES | NULL |
@@ -451,6 +453,40 @@
 | `quantity` | `integer` | YES | 0 |
 | `unit_price` | `numeric` | YES | 0 |
 | `total_price` | `numeric` | YES | 0 |
+| `actual_unit_price` | `numeric` | YES | NULL |
+| `actual_total_price` | `numeric` | YES | NULL |
+| `order_date` | `date` | YES | NULL |
+| `expected_date` | `date` | YES | NULL |
+| `received_date` | `date` | YES | NULL |
+| `outsource_type` | `character varying` | NO | 'NORMAL'::character varying |
+| `status` | `text` | YES | '발주대기'::text |
+| `notes` | `text` | YES | NULL |
+| `company_id` | `uuid` | NO | NULL |
+| `created_at` | `timestamp with time zone` | YES | now() |
+| `updated_at` | `timestamp with time zone` | YES | now() |
+| `received_qty` | `integer` | YES | 0 |
+| `read_at` | `timestamp with time zone` | YES | NULL |
+| `po_receipt_token` | `uuid` | YES | NULL |
+|---|---|---|---|
+
+## 📄 Table: `material_orders`
+
+| Column | Type | Nullable | Default |
+|--------|------|----------|---------|
+| `id` | `uuid` | NO | gen_random_uuid() |
+| `order_item_id` | `uuid` | YES | NULL |
+| `supplier_id` | `uuid` | YES | NULL |
+| `supplier_name` | `text` | YES | NULL |
+| `material_name` | `text` | YES | NULL |
+| `spec` | `text` | YES | NULL |
+| `quantity` | `integer` | YES | 0 |
+| `unit_price` | `numeric` | YES | 0 |
+| `total_price` | `numeric` | YES | 0 |
+| `actual_unit_price` | `numeric` | YES | NULL |
+| `actual_total_price` | `numeric` | YES | NULL |
+| `shape` | `text` | YES | NULL |
+| `estimated_price` | `numeric` | YES | 0 |
+| `po_no` | `text` | YES | NULL |
 | `order_date` | `date` | YES | NULL |
 | `expected_date` | `date` | YES | NULL |
 | `received_date` | `date` | YES | NULL |
@@ -475,6 +511,29 @@
 | `created_at` | `timestamp with time zone` | NO | timezone('utc'::text, now()) |
 |---|---|---|---|
 
+## 📄 Table: `routing_templates`
+
+| Column | Type | Nullable | Default |
+|--------|------|----------|---------|
+| `id` | `uuid` | NO | gen_random_uuid() |
+| `company_id` | `uuid` | NO | NULL |
+| `name` | `text` | NO | NULL |
+| `description` | `text` | YES | NULL |
+| `created_at` | `timestamp with time zone` | YES | now() |
+| `updated_at` | `timestamp with time zone` | YES | now() |
+|---|---|---|---|
+
+## 📄 Table: `routing_template_items`
+
+| Column | Type | Nullable | Default |
+|--------|------|----------|---------|
+| `id` | `uuid` | NO | gen_random_uuid() |
+| `template_id` | `uuid` | NO | NULL |
+| `sequence_no` | `integer` | NO | NULL |
+| `process_id` | `uuid` | NO | NULL |
+| `created_at` | `timestamp with time zone` | YES | now() |
+|---|---|---|---|
+
 ## 📄 Table: `post_processings`
 
 | Column | Type | Nullable | Default |
@@ -485,6 +544,19 @@
 | `price_per_kg` | `numeric` | YES | 0 |
 | `created_at` | `timestamp with time zone` | YES | now() |
 | `updated_at` | `timestamp with time zone` | YES | now() |
+|---|---|---|---|
+
+## 📄 Table: `processes`
+
+| Column | Type | Nullable | Default |
+|--------|------|----------|---------|
+| `id` | `uuid` | NO | gen_random_uuid() |
+| `company_id` | `uuid` | NO | NULL |
+| `name` | `text` | NO | NULL |
+| `description` | `text` | YES | NULL |
+| `is_outsource` | `boolean` | NO | false |
+| `created_at` | `timestamp with time zone` | NO | timezone('utc'::text, now()) |
+| `updated_at` | `timestamp with time zone` | NO | timezone('utc'::text, now()) |
 |---|---|---|---|
 
 ## 📄 Table: `process_logs`
@@ -502,9 +574,15 @@
 | `start_time` | `timestamp with time zone` | YES | NULL |
 | `end_time` | `timestamp with time zone` | YES | NULL |
 | `notes` | `text` | YES | NULL |
+| `start_qty` | `integer` | YES | 0 |
+| `good_qty` | `integer` | YES | 0 |
+| `defect_qty` | `integer` | YES | 0 |
 | `company_id` | `uuid` | NO | NULL |
 | `created_at` | `timestamp with time zone` | YES | now() |
 | `updated_at` | `timestamp with time zone` | YES | now() |
+| `process_id` | `uuid` | YES | NULL |
+| `sequence_no` | `integer` | YES | NULL |
+| `is_planned` | `boolean` | YES | true |
 |---|---|---|---|
 
 ## 📄 Table: `profiles`
@@ -554,7 +632,8 @@
 |--------|------|----------|---------|
 | `id` | `uuid` | NO | gen_random_uuid() |
 | `company_id` | `uuid` | NO | NULL |
-| `order_id` | `uuid` | NO | NULL |
+| `client_id` | `uuid` | YES | NULL |
+| `order_id` | `uuid` | YES | NULL |
 | `shipment_no` | `text` | NO | NULL |
 | `status` | `text` | NO | 'pending'::text |
 | `courier` | `text` | YES | NULL |

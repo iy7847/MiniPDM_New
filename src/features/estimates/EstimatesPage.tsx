@@ -11,7 +11,7 @@ import {
 import { Plus, ArrowUpDown } from 'lucide-react';
 import { Button } from '../../design-system/Button';
 import { BaseInput } from '../../design-system/BaseInput';
-import { PageHeader, PageTabs, FilterBar } from '../../design-system';
+import { PageHeader, PageTabs, FilterBar, StatusBadge } from '../../design-system';
 import { Badge } from '../../design-system/Badge';
 import { useEstimateList } from './hooks/useEstimate';
 import type { Estimate } from './types';
@@ -23,12 +23,14 @@ import { Tabs } from '../../design-system/Tabs';
 import { EstimateItemSearch } from './components/EstimateItemSearch';
 import { DraftEstimateSelectModal } from './components/DraftEstimateSelectModal';
 import { copyItemsToEstimate } from './services/estimateService';
-import { List, Search, ShoppingCart, X } from 'lucide-react';
+import { List, Search, ShoppingCart, X, FileSpreadsheet } from 'lucide-react';
+import { usePermissions } from '../../shared/hooks/usePermissions';
 
 const columnHelper = createColumnHelper<Estimate>();
 
 export const EstimatesPage: React.FC = () => {
   const navigate = useNavigate();
+  const { hasPermission } = usePermissions();
   const { 
     estimates, totalCount, page, pageSize, localSearch, setLocalSearch, status, startDate, endDate, updateParams, reload
   } = useEstimateList();
@@ -88,13 +90,7 @@ export const EstimatesPage: React.FC = () => {
     }),
     columnHelper.accessor('status', {
       header: '상태',
-      cell: info => {
-        const status = info.getValue();
-        if (status === 'DRAFT') return <Badge variant="warning">작성중</Badge>;
-        if (status === 'SENT') return <Badge variant="default">견적제출</Badge>;
-        if (status === 'ORDERED') return <Badge variant="success">수주완료</Badge>;
-        return <Badge variant="default">{status}</Badge>;
-      },
+      cell: info => <StatusBadge type="estimate" status={info.getValue()} />,
     }),
     columnHelper.display({
       id: 'actions',
@@ -106,7 +102,7 @@ export const EstimatesPage: React.FC = () => {
         const isLocked = est.status === 'SENT' || est.status === 'ORDERED';
         return (
           <div className="flex items-center space-x-2" onClick={(e) => e.stopPropagation()}>
-            {!isLocked && (
+            {!isLocked && hasPermission('can_delete_estimates') && (
               <button
                 className={`p-1.5 rounded transition-colors text-red-400 hover:bg-red-500/10`}
                 onClick={(e) => {
@@ -122,7 +118,7 @@ export const EstimatesPage: React.FC = () => {
         );
       }
     })
-  ], []);
+  ], [hasPermission]);
 
   const handleDeleteConfirm = async () => {
     if (!deleteTargetId) return;
@@ -131,9 +127,9 @@ export const EstimatesPage: React.FC = () => {
       await deleteEstimate(deleteTargetId);
       toast.success('견적서가 정상적으로 삭제되었습니다.');
       reload();
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      toast.error('견적서 삭제 중 오류가 발생했습니다.');
+      toast.error(e.message || '견적서 삭제 중 오류가 발생했습니다.');
     } finally {
       setIsDeleting(false);
       setDeleteTargetId(null);
@@ -158,9 +154,11 @@ export const EstimatesPage: React.FC = () => {
       {/* Header */}
       <div className="p-6 pb-0">
         <PageHeader
-          title={
-            <div className="flex items-center gap-6">
-              견적 관리
+          icon={FileSpreadsheet}
+          title="견적 관리"
+          description="도면 분석 및 단가 계산을 통해 고객사 견적서를 작성·발행합니다."
+          actions={
+            <div className="flex items-center gap-4">
               <Tabs 
                 tabs={[
                   { id: 'list', label: '견적서 목록', icon: <List size={16} /> },
@@ -169,17 +167,17 @@ export const EstimatesPage: React.FC = () => {
                 activeTab={activeTab} 
                 onChange={setActiveTab} 
               />
+              {hasPermission('can_write_estimates') && (
+                <Button 
+                  variant="primary" 
+                  onClick={() => navigate('/estimates/new')}
+                  className="flex items-center gap-2"
+                >
+                  <Plus size={18} />
+                  새 견적 작성
+                </Button>
+              )}
             </div>
-          }
-          actions={
-            <Button 
-              variant="primary" 
-              onClick={() => navigate('/estimates/new')}
-              className="flex items-center gap-2"
-            >
-              <Plus size={18} />
-              새 견적 작성
-            </Button>
           }
         />
 

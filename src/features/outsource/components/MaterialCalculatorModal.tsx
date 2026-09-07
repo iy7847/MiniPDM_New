@@ -115,28 +115,6 @@ export function MaterialCalculatorModal({ isOpen, group, onSave, onClose }: Mate
                 material_id: match.id,
                 material_name: match.code || match.name 
               };
-              // If material has a specific category (e.g. '봉재류' or '판재/각재류'), apply it
-              if (match.category) {
-                if (match.category === '봉재류' || match.category.includes('봉')) {
-                  updates.shapeCategory = '봉재류';
-                  if (prev.shapeCategory !== '봉재류') {
-                    updates.shape = '환봉';
-                    // Remap d to l if coming from plate
-                    if (prev.dims && prev.dims.d !== undefined && prev.dims.l === undefined) {
-                      updates.dims = { ...prev.dims, l: prev.dims.d };
-                    }
-                  }
-                } else if (match.category === '판재/각재류' || match.category.includes('판')) {
-                  updates.shapeCategory = '판재/각재류';
-                  if (prev.shapeCategory !== '판재/각재류') {
-                    updates.shape = '일반 판재';
-                    // Remap l to d if coming from round
-                    if (prev.dims && prev.dims.l !== undefined && prev.dims.d === undefined) {
-                      updates.dims = { ...prev.dims, d: prev.dims.l, t: prev.dims.t || 0 };
-                    }
-                  }
-                }
-              }
               return { ...prev, ...updates };
             });
           }
@@ -269,7 +247,6 @@ export function MaterialCalculatorModal({ isOpen, group, onSave, onClose }: Mate
     setFormData(prev => ({
       ...prev,
       weight: Number(calculatedWeight.toFixed(2)),
-      unit_price: unitPrice,
       estimated_price: totalEstPrice,
       ...(Object.keys(formData.dims).length > 0 ? { spec: newSpec } : {})
     }));
@@ -330,12 +307,29 @@ export function MaterialCalculatorModal({ isOpen, group, onSave, onClose }: Mate
                   <label className="text-sm font-bold text-text-secondary">소재 분류</label>
                   <BaseSelect
                     value={formData.shapeCategory}
-                    onChange={(e) => setFormData({ 
-                      ...formData, 
-                      shapeCategory: e.target.value as ShapeCategory,
-                      shape: DEFAULT_SHAPES[e.target.value as ShapeCategory],
-                      dims: {}
-                    })}
+                    onChange={(e) => {
+                      const newCategory = e.target.value as ShapeCategory;
+                      const newShape = DEFAULT_SHAPES[newCategory];
+                      let newDims = { ...formData.dims };
+                      
+                      // Smart remap
+                      if (formData.shapeCategory === '판재/각재류' && newCategory === '봉재류') {
+                        if (newDims.d !== undefined && newDims.l === undefined) {
+                          newDims.l = newDims.d;
+                        }
+                      } else if (formData.shapeCategory === '봉재류' && newCategory === '판재/각재류') {
+                        if (newDims.l !== undefined && newDims.d === undefined) {
+                          newDims.d = newDims.l;
+                        }
+                      }
+                      
+                      setFormData({ 
+                        ...formData, 
+                        shapeCategory: newCategory,
+                        shape: newShape,
+                        dims: newDims
+                      });
+                    }}
                     options={Object.keys(SHAPE_OPTIONS).map(cat => ({ value: cat, label: cat }))}
                   />
                 </div>
@@ -343,7 +337,7 @@ export function MaterialCalculatorModal({ isOpen, group, onSave, onClose }: Mate
                   <label className="text-sm font-bold text-text-secondary">상세 형태</label>
                   <BaseSelect
                     value={formData.shape}
-                    onChange={(e) => setFormData({ ...formData, shape: e.target.value, dims: {} })}
+                    onChange={(e) => setFormData({ ...formData, shape: e.target.value })}
                     options={SHAPE_OPTIONS[formData.shapeCategory].map(opt => ({ value: opt, label: opt }))}
                   />
                 </div>
@@ -360,7 +354,8 @@ export function MaterialCalculatorModal({ isOpen, group, onSave, onClose }: Mate
                 <label className="text-sm font-bold text-text-secondary">발주 규격 (자동생성)</label>
                 <BaseInput
                   value={formData.spec}
-                  onChange={(e) => setFormData({ ...formData, spec: e.target.value })}
+                  readOnly
+                  className="bg-bg-elevated cursor-not-allowed text-text-secondary"
                 />
               </div>
               
@@ -377,20 +372,11 @@ export function MaterialCalculatorModal({ isOpen, group, onSave, onClose }: Mate
                   <label className="text-sm font-bold text-text-secondary">예상 중량 (kg)</label>
                   <NumberInput
                     value={formData.weight}
-                    onChange={(val) => setFormData({ ...formData, weight: val || 0 })}
-                    min={0}
-                    step={0.1}
+                    readOnly
+                    className="bg-bg-elevated cursor-not-allowed"
+                    inputClassName="text-text-secondary"
                   />
                 </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-sm font-bold text-text-secondary">단가 직접 입력</label>
-                <NumberInput
-                  value={formData.unit_price}
-                  onChange={(val) => setFormData({ ...formData, unit_price: val || 0 })}
-                  min={0}
-                />
               </div>
 
               <div className="p-4 bg-bg-elevated border border-border-default rounded-lg">

@@ -14,7 +14,7 @@ export const FinancialTab: React.FC<FinancialTabProps> = ({ form, updateForm }) 
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <Card className="bg-bg-surface p-6 shadow-soft border-0">
         <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border-default">
-          <div className="p-2 bg-brand-bg rounded-xl">
+          <div className="p-2 bg-brand-500/10 rounded-xl">
             <CircleDollarSign className="w-5 h-5 text-brand-500" />
           </div>
           <h3 className="font-black text-text-primary uppercase tracking-tight">환율 및 임율</h3>

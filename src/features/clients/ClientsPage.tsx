@@ -1,26 +1,52 @@
 import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { supabase } from '@/shared/services/supabase';
 import { useClients } from './hooks/useClients';
 import { Button } from '@/design-system/Button';
 import { Tabs } from '@/design-system/Tabs';
+import { PageHeader } from '@/design-system/PageHeader';
 import { ClientModal } from './components/ClientModal';
 import type { Client, ClientFormData } from '@/shared/types/client';
-import { Building2, Search, Plus, MapPin, Globe } from 'lucide-react';
+import { Building2, Search, Plus, MapPin, Globe, ArrowRight } from 'lucide-react';
+import { useConfirm } from '@/app/providers/ConfirmProvider';
+
+const SESSION_KEY = 'minipdm_clients_filters';
 
 export function ClientsPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { confirm } = useConfirm();
+
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
 
   const { clients, loading, fetchClients, saveClient, deleteClient } = useClients();
 
-  const [activeTab, setActiveTab] = useState('ALL');
-  const [searchTerm, setSearchTerm] = useState('');
+  // Sticky Filters (URL Query Params + SessionStorage)
+  const [activeTab, setActiveTab] = useState(() => {
+    return searchParams.get('tab') || sessionStorage.getItem(SESSION_KEY + '_tab') || 'ALL';
+  });
+  const [searchTerm, setSearchTerm] = useState(() => {
+    return searchParams.get('search') || sessionStorage.getItem(SESSION_KEY + '_search') || '';
+  });
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editClient, setEditClient] = useState<Client | null>(null);
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
+
+  // URL 및 SessionStorage 동기화 (Sticky Filters)
+  useEffect(() => {
+    if (location.pathname !== '/clients') return;
+    const params: Record<string, string> = {};
+    if (activeTab && activeTab !== 'ALL') params.tab = activeTab;
+    if (searchTerm) params.search = searchTerm;
+    setSearchParams(params, { replace: true });
+    sessionStorage.setItem(SESSION_KEY + '_tab', activeTab);
+    sessionStorage.setItem(SESSION_KEY + '_search', searchTerm);
+  }, [activeTab, searchTerm, location.pathname, setSearchParams]);
 
   useEffect(() => {
     async function fetchUserData() {
@@ -78,7 +104,7 @@ export function ClientsPage() {
       showNotification('삭제 권한이 없습니다.', 'error');
       return;
     }
-    if (!window.confirm(`정말 [${name}] 업체를 삭제하시겠습니까? 관련된 내역이 있을 경우 삭제가 불가능할 수 있습니다.`)) return;
+    if (!(await confirm({ title: '거래처 삭제', description: `정말 [${name}] 업체를 삭제하시겠습니까? 관련된 내역이 있을 경우 삭제가 불가능할 수 있습니다.`, isDanger: true }))) return;
 
     if (!companyId) return;
     
@@ -95,21 +121,23 @@ export function ClientsPage() {
       {/* Header */}
       <div className="sticky top-0 z-10 backdrop-blur-md bg-bg-base/80 border-b border-border-default px-4 py-4 md:px-8">
         <div className="w-full">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <Building2 className="w-7 h-7 text-text-primary" />
-              <h1 className="text-xl md:text-2xl font-black tracking-tight text-text-primary">거래처 관리</h1>
-            </div>
-            {(userRole === 'admin' || userRole === 'super_admin') && (
-              <Button
-                variant="primary"
-                onClick={() => handleOpenModal()}
-                className="shadow-glow h-[42px] px-4 font-bold"
-              >
-                <Plus className="w-4 h-4 mr-1.5" /> 업체 등록
-              </Button>
-            )}
-          </div>
+          <PageHeader
+            icon={Building2}
+            title="거래처 관리"
+            description="매출처(고객사) 및 매입/외주 협력업체 정보를 등록하고 관리합니다."
+            className="mb-4"
+            actions={
+              (userRole === 'admin' || userRole === 'super_admin') && (
+                <Button
+                  variant="primary"
+                  onClick={() => handleOpenModal()}
+                  className="shadow-glow h-[42px] px-4 font-bold"
+                >
+                  <Plus className="w-4 h-4 mr-1.5" /> 업체 등록
+                </Button>
+              )
+            }
+          />
           
           <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
             <Tabs
@@ -178,36 +206,65 @@ export function ClientsPage() {
                     <tr><td colSpan={7} className="px-6 py-12 text-center text-text-disabled font-bold">등록된 거래처가 없습니다.</td></tr>
                   ) : (
                     filteredClients.map((client) => (
-                      <tr key={client.id} className="hover:bg-bg-overlay/50 transition-colors group">
+                      <tr 
+                        key={client.id} 
+                        onClick={() => navigate(`/clients/${client.id}`)}
+                        className="hover:bg-bg-overlay/60 transition-colors group cursor-pointer"
+                      >
                         <td className="px-6 py-4 whitespace-nowrap">
-                          {client.client_type === 'CUSTOMER' && <span className="px-2 py-1 rounded bg-brand-50 text-brand-600 text-[11px] font-black border border-brand-100">매출처</span>}
-                          {client.client_type === 'SUPPLIER' && <span className="px-2 py-1 rounded bg-orange-50 text-orange-600 text-[11px] font-black border border-orange-100">매입/외주처</span>}
-                          {client.client_type === 'BOTH' && <span className="px-2 py-1 rounded bg-purple-50 text-purple-600 text-[11px] font-black border border-purple-100">공통</span>}
+                          {client.client_type === 'CUSTOMER' && <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 text-[11px] font-bold border border-brand-500/20">매출처</span>}
+                          {client.client_type === 'SUPPLIER' && <span className="px-2 py-1 rounded bg-warning/10 text-warning text-[11px] font-bold border border-warning/20">매입/외주처</span>}
+                          {client.client_type === 'BOTH' && <span className="px-2 py-1 rounded bg-purple-500/10 text-purple-400 text-[11px] font-bold border border-purple-500/20">공통</span>}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex gap-1.5 items-center">
                             {client.is_foreign ? (
-                              <span className="flex items-center gap-1 bg-danger-bg text-danger px-2 py-1 rounded text-[11px] font-black border border-danger-border"><Globe size={10} />{client.country}</span>
+                              <span className="flex items-center gap-1 bg-danger/10 text-danger px-2 py-1 rounded text-[11px] font-bold border border-danger/20"><Globe size={10} />{client.country}</span>
                             ) : (
-                              <span className="flex items-center gap-1 bg-bg-elevated text-text-secondary px-2 py-1 rounded text-[11px] font-black border border-border-strong"><MapPin size={10} />KR</span>
+                              <span className="flex items-center gap-1 bg-bg-elevated text-text-secondary px-2 py-1 rounded text-[11px] font-bold border border-border-default"><MapPin size={10} />KR</span>
                             )}
-                            <span className="bg-brand-50 text-brand-600 px-2 py-1 rounded text-[11px] font-black border border-brand-100">{client.currency || 'KRW'}</span>
+                            <span className="bg-brand-500/10 text-brand-400 px-2 py-1 rounded text-[11px] font-bold border border-brand-500/20">{client.currency || 'KRW'}</span>
                           </div>
                         </td>
-                        <td className="px-6 py-4 font-black text-text-primary">{client.name}</td>
+                        <td className="px-6 py-4 font-bold text-text-primary group-hover:text-brand-400 transition-colors">
+                          <div className="flex items-center justify-between">
+                            <span>{client.name}</span>
+                            <ArrowRight size={14} className="opacity-0 group-hover:opacity-100 -translate-x-1 group-hover:translate-x-0 text-brand-400 transition-all" />
+                          </div>
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-text-secondary font-mono text-sm">{client.biz_num || '-'}</td>
                         <td className="px-6 py-4">
                           <div className="flex flex-col">
                             <span className="font-bold text-text-primary text-sm">{client.manager_name || '-'}</span>
-                            <span className="text-xs text-text-disabled">{client.manager_email}</span>
+                            <span className="text-xs text-text-muted">{client.manager_email}</span>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-text-secondary font-mono text-sm">{client.manager_phone || '-'}</td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Button variant="secondary" size="sm" className="h-8 px-3 text-xs" onClick={() => handleOpenModal(client)}>수정</Button>
+                            <Button 
+                              variant="secondary" 
+                              size="sm" 
+                              className="h-8 px-3 text-xs" 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenModal(client);
+                              }}
+                            >
+                              수정
+                            </Button>
                             {(userRole === 'admin' || userRole === 'super_admin') && (
-                              <Button variant="danger" size="sm" className="h-8 px-3 text-xs" onClick={() => handleDelete(client.id, client.name)}>삭제</Button>
+                              <Button 
+                                variant="danger" 
+                                size="sm" 
+                                className="h-8 px-3 text-xs" 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDelete(client.id, client.name);
+                                }}
+                              >
+                                삭제
+                              </Button>
                             )}
                           </div>
                         </td>
@@ -226,22 +283,29 @@ export function ClientsPage() {
                 <div className="py-12 text-center text-text-disabled font-bold">등록된 업체가 없습니다.</div>
               ) : (
                 filteredClients.map((client) => (
-                  <div key={client.id} className="p-4 active:bg-bg-overlay/50 transition-colors">
+                  <div 
+                    key={client.id} 
+                    onClick={() => navigate(`/clients/${client.id}`)}
+                    className="p-4 active:bg-bg-overlay/50 transition-colors cursor-pointer"
+                  >
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex flex-col gap-2">
                         <div className="flex gap-2">
-                          {client.client_type === 'CUSTOMER' && <span className="px-2 py-0.5 rounded bg-brand-50 text-brand-600 text-[10px] font-black border border-brand-100">매출처</span>}
-                          {client.client_type === 'SUPPLIER' && <span className="px-2 py-0.5 rounded bg-orange-50 text-orange-600 text-[10px] font-black border border-orange-100">매입/외주처</span>}
-                          {client.client_type === 'BOTH' && <span className="px-2 py-0.5 rounded bg-purple-50 text-purple-600 text-[10px] font-black border border-purple-100">공통</span>}
+                          {client.client_type === 'CUSTOMER' && <span className="px-2 py-0.5 rounded bg-brand-500/10 text-brand-400 text-[10px] font-bold border border-brand-500/20">매출처</span>}
+                          {client.client_type === 'SUPPLIER' && <span className="px-2 py-0.5 rounded bg-warning/10 text-warning text-[10px] font-bold border border-warning/20">매입/외주처</span>}
+                          {client.client_type === 'BOTH' && <span className="px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 text-[10px] font-bold border border-purple-500/20">공통</span>}
                           
                           {client.is_foreign ? (
-                            <span className="bg-danger-bg text-danger px-2 py-0.5 rounded text-[10px] font-black border border-danger-border">{client.country}</span>
+                            <span className="bg-danger/10 text-danger px-2 py-0.5 rounded text-[10px] font-bold border border-danger/20">{client.country}</span>
                           ) : (
-                            <span className="bg-bg-elevated text-text-secondary px-2 py-0.5 rounded text-[10px] font-black border border-border-strong">KR</span>
+                            <span className="bg-bg-elevated text-text-secondary px-2 py-0.5 rounded text-[10px] font-bold border border-border-default">KR</span>
                           )}
-                          <span className="bg-brand-50 text-brand-600 px-2 py-0.5 rounded text-[10px] font-black border border-brand-100">{client.currency || 'KRW'}</span>
+                          <span className="bg-brand-500/10 text-brand-400 px-2 py-0.5 rounded text-[10px] font-bold border border-brand-500/20">{client.currency || 'KRW'}</span>
                         </div>
-                        <h4 className="text-lg font-black text-text-primary">{client.name}</h4>
+                        <h4 className="text-lg font-bold text-text-primary flex items-center justify-between">
+                          <span>{client.name}</span>
+                          <ArrowRight size={16} className="text-brand-400" />
+                        </h4>
                       </div>
                     </div>
                     
@@ -261,9 +325,27 @@ export function ClientsPage() {
                     </div>
                     
                     <div className="flex justify-end gap-2 mt-4">
-                      <Button variant="secondary" size="sm" onClick={() => handleOpenModal(client)}>수정</Button>
+                      <Button 
+                        variant="secondary" 
+                        size="sm" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenModal(client);
+                        }}
+                      >
+                        수정
+                      </Button>
                       {(userRole === 'admin' || userRole === 'super_admin') && (
-                        <Button variant="danger" size="sm" onClick={() => handleDelete(client.id, client.name)}>삭제</Button>
+                        <Button 
+                          variant="danger" 
+                          size="sm" 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(client.id, client.name);
+                          }}
+                        >
+                          삭제
+                        </Button>
                       )}
                     </div>
                   </div>

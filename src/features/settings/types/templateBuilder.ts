@@ -1,4 +1,4 @@
-export type BlockType = 'header' | 'receiver_info' | 'company_info' | 'document_info' | 'summary' | 'item_table' | 'terms_notes' | 'condition' | 'free_text' | 'label' | 'line' | 'image' | 'page_number';
+export type BlockType = 'header' | 'receiver_info' | 'company_info' | 'document_info' | 'summary' | 'item_table' | 'terms_notes' | 'condition' | 'free_text' | 'label' | 'line' | 'image' | 'page_number' | 'approval_line' | 'qrcode';
 export type TemplateBand = 'header' | 'body' | 'footer';
 
 export interface BaseBlock {
@@ -38,6 +38,8 @@ export interface ItemTableBlock extends BaseBlock {
   type: 'item_table';
   columns: string[]; // mapped from Excel presets or predefined
   theme: 'simple' | 'bordered' | 'striped';
+  headerBgColor?: string;
+  rowHeight?: number;
 }
 
 export interface TermsNotesBlock extends BaseBlock {
@@ -98,10 +100,22 @@ export interface LineBlock extends BaseBlock {
 
 export interface PageNumberBlock extends BaseBlock {
   type: 'page_number';
-  format: 'Page {current} / {total}' | '{current} / {total}' | '- {current} -';
+  format: string;
   align: 'left' | 'center' | 'right';
   fontSize: number;
   color: string;
+}
+
+export interface ApprovalLineBlock extends BaseBlock {
+  type: 'approval_line';
+  titles: string[]; // e.g. ['담당', '검토', '승인']
+  boxWidth: number;
+}
+
+export interface QrCodeBlock extends BaseBlock {
+  type: 'qrcode';
+  valueType: 'estimate_no' | 'project_name' | 'company_info';
+  size: number;
 }
 
 export type TemplateBlock = 
@@ -117,10 +131,18 @@ export type TemplateBlock =
   | ReceiverInfoBlock
   | ImageBlock
   | DocumentInfoBlock
-  | PageNumberBlock;
+  | PageNumberBlock
+  | ApprovalLineBlock
+  | QrCodeBlock;
 
 export interface TemplateMetadata {
   headerHeight: number;
   footerHeight: number;
+  orientation?: 'portrait' | 'landscape';
+  watermark?: {
+    show: boolean;
+    opacity: number;
+    imagePath?: string;
+  };
   blocks: TemplateBlock[];
 }

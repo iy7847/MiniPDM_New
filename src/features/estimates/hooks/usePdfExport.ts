@@ -2,6 +2,7 @@ import { PDFDocument, rgb } from 'pdf-lib';
 import type { OcrResult, Mask } from '../components/SmartPdfTypes';
 import type { EstimateItem } from '../types';
 import { createInitialItemForm } from '../types';
+import { toast } from '@/shared/stores/useToastStore';
 
 const getDirectoryPath = (filePath: string) => {
   const lastSlashIndex = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'));
@@ -80,7 +81,7 @@ export function usePdfExport() {
       onClose();
     } catch (e: any) {
       console.error('[SmartPdfImporter] Error in handleApply:', e);
-      alert('PDF 분할 저장 중 오류가 발생했습니다: ' + e.message);
+      toast.error('PDF 분할 저장 중 오류가 발생했습니다: ' + e.message);
     } finally {
       setIsProcessing(false);
     }
@@ -103,11 +104,15 @@ export function usePdfExport() {
     }
 
     if (!sourcePath || !(window as any).ipcRenderer) {
-      return alert('이 기능은 Electron 데스크탑 앱에서만 지원됩니다.\n(웹 브라우저에서는 원본 경로 접근 불가)');
+      toast.error('이 기능은 Electron 데스크탑 앱에서만 지원됩니다 (웹 브라우저에서는 원본 경로 접근 불가).');
+      return;
     }
 
     const targetDir = getDirectoryPath(sourcePath);
-    if (!targetDir) return alert('저장 경로를 찾을 수 없습니다.');
+    if (!targetDir) {
+      toast.error('저장 경로를 찾을 수 없습니다.');
+      return;
+    }
 
     setIsProcessing(true);
     try {
@@ -168,10 +173,10 @@ export function usePdfExport() {
         }
       }
 
-      alert(`${savedCount}개 파일이 원본 폴더에 분할 저장되었습니다.\n경로: ${targetDir}`);
+      toast.success(`${savedCount}개 파일이 원본 폴더에 분할 저장되었습니다 (경로: ${targetDir})`);
     } catch (e: any) {
       console.error(e);
-      alert('파일 분할 저장 중 오류가 발생했습니다: ' + e.message);
+      toast.error('파일 분할 저장 중 오류가 발생했습니다: ' + e.message);
     } finally {
       setIsProcessing(false);
     }
@@ -220,7 +225,7 @@ export function usePdfExport() {
       return new File([pdfBytes as any], file.name, { type: 'application/pdf' });
     } catch (e: any) {
       console.error('[exportSinglePdfWithMask] Error:', e);
-      alert('마스킹 적용 중 오류가 발생했습니다: ' + e.message);
+      toast.error('마스킹 적용 중 오류가 발생했습니다: ' + e.message);
       return null;
     } finally {
       setIsProcessing(false);

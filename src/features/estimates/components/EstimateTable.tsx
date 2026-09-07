@@ -7,7 +7,7 @@ import {
   getExpandedRowModel
 } from '@tanstack/react-table';
 import type { Row } from '@tanstack/react-table';
-import { Edit2, FileText, Box, ChevronDown, ChevronRight, FileUp, Trash2 } from 'lucide-react';
+import { Edit2, FileText, Box, ChevronDown, ChevronRight, FileUp, Trash2, Search } from 'lucide-react';
 import type { EstimateItem } from '../types';
 
 import { EstimateItemExpanded } from './EstimateItemExpanded';
@@ -18,6 +18,9 @@ import { EXT_2D, EXT_3D } from '../utils/fileMatching';
 import { getCurrencySymbol } from '../../../shared/utils/currency';
 import { DocumentMaskingModal } from '../../../shared/components/DocumentMaskingModal';
 import { ImagePreviewModal } from '../../../shared/components/ImagePreviewModal';
+import { toast } from '../../../shared/stores/useToastStore';
+import { MaskedText } from '../../../design-system';
+import { usePermissions } from '../../../shared/hooks/usePermissions';
 
 interface EstimateTableProps {
   items: EstimateItem[];
@@ -37,6 +40,7 @@ interface EstimateTableProps {
   showForeign?: boolean;
   onRemoveSingleFile?: (itemId: string, file: any, skipConfirm?: boolean) => void;
   onRemoveMultipleFiles?: (itemId: string, files: any[]) => void;
+  estimate?: any;
 }
 
 const columnHelper = createColumnHelper<EstimateItem>();
@@ -58,8 +62,12 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
   onDeleteExistingFile,
   showForeign = false,
   onRemoveSingleFile,
-  onRemoveMultipleFiles
+  onRemoveMultipleFiles,
+  estimate
 }) => {
+  const { hasPermission } = usePermissions();
+  const canViewMargins = hasPermission('can_view_margins');
+
   const [expanded, setExpanded] = useState({});
   const [prevLength, setPrevLength] = useState(items.length);
 
@@ -94,18 +102,18 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
         } catch (e) {}
       }
       if (!filePath) {
-        // toast가 import 안되어 있을 수 있으므로 window.alert 대체 혹은 toast 유지
+        // toast가 import 안되어 있을 수 있으므로 window.toast.error 대체 혹은 toast 유지
         if (typeof (window as any).toast !== 'undefined') (window as any).toast.error('로컬 파일 경로를 찾을 수 없어 외부 앱으로 열 수 없습니다.');
-        else alert('로컬 파일 경로를 찾을 수 없어 외부 앱으로 열 수 없습니다.');
+        else toast.error('로컬 파일 경로를 찾을 수 없어 외부 앱으로 열 수 없습니다.');
         return;
       }
       try {
         const res = await (window as any).ipcRenderer.invoke('open-local-file', filePath);
         if (!res.success) {
-          alert('파일을 여는 데 실패했습니다: ' + res.error);
+          toast.error('파일을 여는 데 실패했습니다: ' + res.error);
         }
       } catch (err: any) {
-        alert('파일을 열 수 없습니다: ' + err.message);
+        toast.error('파일을 열 수 없습니다: ' + err.message);
       }
     }
   };
@@ -181,12 +189,12 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
     }),
     columnHelper.accessor('material_cost', {
       header: '소재비',
-      cell: info => formatPrice(info.getValue() || 0),
+      cell: info => <MaskedText isVisible={canViewMargins} value={formatPrice(info.getValue() || 0)} />,
       size: 90,
     }),
     columnHelper.accessor('processing_cost', {
       header: '가공비',
-      cell: info => formatPrice(info.getValue() || 0),
+      cell: info => <MaskedText isVisible={canViewMargins} value={formatPrice(info.getValue() || 0)} />,
       size: 90,
     }),
     columnHelper.display({
@@ -195,10 +203,13 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
       cell: ({ row }) => {
         const { heat_treatment_cost = 0, post_process_cost = 0 } = row.original;
         const totalExtra = heat_treatment_cost + post_process_cost;
-        return formatPrice(totalExtra);
+        return <MaskedText isVisible={canViewMargins} value={formatPrice(totalExtra)} />;
       },
       size: 100,
     }),
+
+
+
     columnHelper.accessor('unit_price', {
       header: () => `단가 ${showForeign ? `(${getCurrencySymbol(currency)})` : '(₩)'}`,
       cell: info => formatPrice(info.getValue() || 0),
@@ -267,18 +278,29 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
       cell: ({ row }) => {
         return (
           <div className="flex items-center justify-center gap-1">
-            <button
-              onPointerDown={(e) => {
-                // onClick 대신 onPointerDown 사용 — 행 re-render 타이밍에 클릭 이벤트가 
-                // 사라지는 문제를 방지합니다. (연필 버튼 한 번에 작동 보장)
-                e.stopPropagation();
-                if (onOpenModal) onOpenModal(row.original);
-              }}
-              className="p-1 text-text-secondary hover:text-brand-500 hover:bg-brand-500/10 rounded transition-colors"
-              title="상세 모달 열기"
-            >
-              <Edit2 size={15} />
-            </button>
+            {!isReadOnly ? (
+              <button
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  if (onOpenModal) onOpenModal(row.original);
+                }}
+                className="p-1 text-text-secondary hover:text-brand-500 hover:bg-brand-500/10 rounded transition-colors"
+                title="상세 모달 열기"
+              >
+                <Edit2 size={15} />
+              </button>
+            ) : (
+              <button
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  if (onOpenModal) onOpenModal(row.original);
+                }}
+                className="p-1 text-text-secondary hover:text-brand-500 hover:bg-brand-500/10 rounded transition-colors"
+                title="상세 보기"
+              >
+                <Search size={15} />
+              </button>
+            )}
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -294,7 +316,7 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
       },
       size: 60,
     }),
-  ], [items, isReadOnly, onChange, showForeign, exchangeRate]);
+  ], [items, isReadOnly, onChange, showForeign, exchangeRate, estimate?.custom_columns, canViewMargins]);
 
   const table = useReactTable({
     data: items,
@@ -349,7 +371,7 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
                   <tr 
                     className={`border-b border-border-default/50 hover:bg-bg-elevated/50 transition-colors cursor-pointer ${row.getIsExpanded() ? 'bg-bg-elevated border-b-0' : ''}`}
                     onClick={() => {
-                      if (!isReadOnly) row.toggleExpanded();
+                      row.toggleExpanded();
                     }}
                   >
                     {row.getVisibleCells().map(cell => (
@@ -384,6 +406,8 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
                               onSaveFiles={onSaveFiles || (async () => {})}
                               onDeleteExistingFile={onDeleteExistingFile || (async () => {})}
                               existingItems={items}
+                              customColumns={estimate?.custom_columns || []}
+                              isReadOnly={isReadOnly}
                             />
                           ) : (
                             <div className="p-4 text-center text-text-secondary">메타데이터를 불러오는 중입니다...</div>

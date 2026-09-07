@@ -13,6 +13,7 @@ interface ItemFinalCostFormProps {
   setItemForm: React.Dispatch<React.SetStateAction<EstimateItem>>;
   setIsManualPrice: (val: boolean) => void;
   calcResult: any;
+  disabled?: boolean;
 }
 
 export const ItemFinalCostForm: React.FC<ItemFinalCostFormProps> = ({
@@ -21,7 +22,8 @@ export const ItemFinalCostForm: React.FC<ItemFinalCostFormProps> = ({
   itemForm,
   setItemForm,
   setIsManualPrice,
-  calcResult
+  calcResult,
+  disabled = false
 }) => {
   const [isOpen, setIsOpen] = useState(true);
 
@@ -49,7 +51,7 @@ export const ItemFinalCostForm: React.FC<ItemFinalCostFormProps> = ({
         className="flex justify-between items-center cursor-pointer border-b border-border-default pb-2 select-none hover:bg-bg-elevated -mx-2 px-2 rounded-md transition-colors"
         onClick={() => setIsOpen(!isOpen)}
       >
-        <h3 className="text-lg font-bold text-text-primary">3. 수량 및 추가 설정</h3>
+        <h3 className="text-lg font-bold text-text-primary">4. 수량 및 추가 설정</h3>
         {isOpen ? <ChevronDown size={20} className="text-text-secondary" /> : <ChevronRight size={20} className="text-text-secondary" />}
       </div>
       
@@ -63,14 +65,15 @@ export const ItemFinalCostForm: React.FC<ItemFinalCostFormProps> = ({
             value={Number(qtyInput) || 1} 
             onChange={v => setQtyInput(String(v || 1))} 
             allowDecimal={false}
+            disabled={disabled}
           />
         </div>
         <div className="flex gap-4">
           <div className="flex-1">
-            <NumberInput label="기업이윤 (%)" value={itemForm.profit_rate} onChange={v => setItemForm({ ...itemForm, profit_rate: v })} />
+            <NumberInput label="기업이윤 (%)" value={itemForm.profit_rate} onChange={v => setItemForm({ ...itemForm, profit_rate: v })} disabled={disabled} />
           </div>
           <div className="flex-1">
-            <NumberInput label="소요일 (일)" value={itemForm.work_days || ''} onChange={v => setItemForm({ ...itemForm, work_days: v })} />
+            <NumberInput label="소요일 (일)" value={itemForm.work_days || ''} onChange={v => setItemForm({ ...itemForm, work_days: v })} disabled={disabled} />
           </div>
         </div>
       </div>
@@ -79,12 +82,13 @@ export const ItemFinalCostForm: React.FC<ItemFinalCostFormProps> = ({
         <label className="block text-sm font-bold text-text-primary mb-2">파일 업로드</label>
         
         <div className="flex items-center gap-3">
-          <label className="cursor-pointer inline-flex items-center justify-center bg-brand-500/10 hover:bg-brand-500/20 text-brand-500 border border-brand-500/20 px-3 py-1.5 rounded-md text-xs font-bold transition-colors shrink-0">
+          <label className={`cursor-pointer inline-flex items-center justify-center bg-brand-500/10 text-brand-500 border border-brand-500/20 px-3 py-1.5 rounded-md text-xs font-bold transition-colors shrink-0 ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-brand-500/20'}`}>
             <span>파일 선택</span>
             <input 
               type="file" 
               multiple 
               className="hidden"
+              disabled={disabled}
               onChange={(e) => {
                 if (e.target.files) {
                   setItemForm(prev => ({ ...prev, tempFiles: [...(prev.tempFiles || []), ...Array.from(e.target.files!)] }));

@@ -8,10 +8,13 @@ import { EstimateBatchToolbar } from './components/EstimateBatchToolbar';
 import { useEstimateDetail, useEstimateMetadata } from './hooks/useEstimate';
 import { useAuth } from '../../app/providers/AuthProvider';
 import { supabase } from '../../shared/services/supabase';
+import { toast } from '../../shared/stores/useToastStore';
 import { useClients } from '../clients/hooks/useClients';
 import { EstimateHeader } from './components/EstimateHeader';
 import { EstimateBasicInfo } from './components/EstimateBasicInfo';
 import { EstimateDetailModals, type EstimateDetailModalsRef } from './components/EstimateDetailModals';
+import { CustomQuotationTemplate } from './components/CustomQuotationTemplate';
+import { CustomColumnDropdown } from './components/CustomColumnDropdown';
 import { useEstimatePageActions } from './hooks/useEstimatePageActions';
 
 export const EstimateDetailPage: React.FC = () => {
@@ -112,36 +115,61 @@ export const EstimateDetailPage: React.FC = () => {
     });
   };
 
-  const handleConvertOrder = async (selectedItemsToOrder: any[]) => {
-    if (!estimate?.id || !companyId || !user?.id) {
-      alert('필수 정보가 누락되었습니다.');
+  const handleConvertOrder = async (selectedItemsToOrder: any[], customTotalAmount: number) => {
+    const selectedItemIds = selectedItemsToOrder.map(item => item.id);
+    if (!user?.id || !companyId || !estimate?.id || selectedItemIds.length === 0) {
+      toast.error('필수 정보가 누락되었습니다.');
       return;
     }
     
     try {
-      const selectedItemIds = selectedItemsToOrder.map(item => item.id);
-      const totalAmount = selectedItemsToOrder.reduce((sum, item) => {
-        // 모달에서 수량을 바꿨을 수도 있으므로 (order_qty || qty) * unit_price 사용
-        const finalQty = item.order_qty || item.qty || 1;
-        const finalPrice = finalQty * (item.unit_price || 0);
-        return sum + finalPrice;
-      }, 0);
       
       // 1. RPC 호출 (반환값: JSONB)
       const { data: responseData, error } = await supabase.rpc('convert_estimate_to_order', {
         p_estimate_id: estimate.id,
         p_company_id: companyId,
         p_user_id: user.id,
-        p_selected_item_ids: selectedItemIds,
-        p_total_amount: totalAmount
+        p_selected_item_ids: selectedItemIds
       });
 
       if (error) throw error;
 
-      // 2. 파일 복사 및 DB 등록 처리
-      // responseData 형태: { order_id, po_no, order_number, item_mappings: { [estimate_item_id]: order_item_id } }
+      // responseData 형태: { order_id, po_no, mapping: { [estimate_item_id]: order_item_id } }
       const poNo = responseData?.po_no || 'UNKNOWN_PO';
-      const itemMappings = responseData?.item_mappings || {};
+      const itemMappings = responseData?.mapping || {};
+      const orderId = responseData?.order_id;
+
+      // 1.5. 수동으로 수정한 수주 총액과 품목별 발주 수량/금액을 DB에 업데이트
+      if (orderId) {
+        // 수주 총액 업데이트
+        await supabase
+          .from('orders')
+          .update({ total_amount: customTotalAmount })
+          .eq('id', orderId);
+
+        // 품목별 수량 및 금액 업데이트
+        for (const item of selectedItemsToOrder) {
+          const orderItemId = itemMappings[item.id];
+          if (orderItemId) {
+            await supabase
+              .from('order_items')
+              .update({
+                qty: item.order_qty,
+                supply_price: item.custom_order_amount,
+                unit_price: item.unit_price || (item.custom_order_amount ? Math.round(item.custom_order_amount / item.order_qty) : 0)
+              })
+              .eq('id', orderItemId);
+          }
+        }
+
+        // 견적서 상태를 ORDERED(수주 완료)로 업데이트
+        await supabase
+          .from('estimates')
+          .update({ status: 'ORDERED' })
+          .eq('id', estimate.id);
+      }
+
+      // 2. 파일 복사 및 DB 등록 처리
       const newFilesToInsert: any[] = [];
 
       for (const item of selectedItemsToOrder) {
@@ -187,15 +215,15 @@ export const EstimateDetailPage: React.FC = () => {
         if (insertError) {
           console.error('파일 DB 등록 에러:', insertError);
           // 실패하더라도 수주 자체는 완료되었으므로 알림만 줌
-          alert('수주는 생성되었으나, 일부 도면 파일의 DB 등록에 실패했습니다.');
+          toast.error('수주는 생성되었으나, 일부 도면 파일의 DB 등록에 실패했습니다.');
         }
       }
       
-      alert('수주 확정이 성공적으로 완료되었습니다! 수주 관리 메뉴에서 확인하세요.');
+      toast.success('수주 확정이 성공적으로 완료되었습니다! 수주 관리 메뉴에서 확인하세요.');
       reload();
     } catch (err: any) {
       console.error(err);
-      alert(`수주 전환 중 오류가 발생했습니다:\n${err.message || err.details || JSON.stringify(err)}`);
+      toast.error(`수주 전환 중 오류가 발생했습니다:\n${err.message || err.details || JSON.stringify(err)}`);
     }
   };
 
@@ -294,6 +322,39 @@ export const EstimateDetailPage: React.FC = () => {
                     도면 분할 / OCR
                   </Button>
 
+                  <CustomColumnDropdown
+                    currentColumns={estimate?.custom_columns || []}
+                    companyId={companyId}
+                    onToggleColumn={(col) => {
+                      // Normalize any legacy objects to strings
+                      const currentCols = (estimate?.custom_columns || []).map((c: any) => 
+                        typeof c === 'object' ? c.name || c.id || String(c) : String(c)
+                      );
+                      const isExisting = currentCols.includes(col);
+                      
+                      setEstimate({
+                        ...estimate,
+                        custom_columns: isExisting
+                          ? currentCols.filter((c: string) => c !== col)
+                          : [...currentCols, col]
+                      } as any);
+
+                      if (isExisting) {
+                        setItems(prevItems => prevItems.map(item => {
+                          if (!item.custom_costs || typeof item.custom_costs !== 'object') return item;
+                          const nextCosts = { ...item.custom_costs };
+                          delete nextCosts[col];
+                          // Also clean up any legacy object key if it exists
+                          delete nextCosts['[object Object]'];
+                          return {
+                            ...item,
+                            custom_costs: nextCosts
+                          };
+                        }));
+                      }
+                    }}
+                  />
+
                   <Button size="sm" variant="primary" className="flex items-center gap-1.5" onClick={async () => {
                     const newItem = await handleAddItem();
                     if (newItem) {
@@ -321,6 +382,7 @@ export const EstimateDetailPage: React.FC = () => {
               isReadOnly={isLocked}
               companyInfo={metadata?.companyInfo}
               metadata={metadata}
+              estimate={estimate}
               estimateId={id || undefined}
               currency={estimate?.currency || 'KRW'}
               exchangeRate={estimate?.base_exchange_rate || 1}
@@ -348,9 +410,7 @@ export const EstimateDetailPage: React.FC = () => {
         onUpdateItem={(updatedItem) => setItems(items.map((it: any) => it.id === updatedItem.id ? updatedItem : it))}
         onSaveClient={async (formData) => { if (companyId) await saveClient(companyId, formData); }}
         onMultiDuplicate={handleMultiDuplicate}
-        onExportExcel={() => {
-            console.log("Excel Export Triggered");
-        }}
+        onExportExcel={() => {}}
         onConvertOrder={handleConvertOrder}
       />
     </div>

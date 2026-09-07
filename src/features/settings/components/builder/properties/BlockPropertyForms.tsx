@@ -4,6 +4,7 @@ import { BaseInput } from '@/design-system/BaseInput';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import type { DropResult } from '@hello-pangea/dnd';
 import { GripVertical } from 'lucide-react';
+import { useSettingsStore } from '@/shared/stores/useSettingsStore';
 
 interface FormProps {
   block: any;
@@ -119,10 +120,16 @@ export const SummaryPropertyForm: React.FC<FormProps> = ({ block, updateBlock })
   </div>
 );
 
-const AVAILABLE_COLUMNS = ['No.', '품번', '품명', '규격', '재질', '단위', '수량', '단가', '공급가액', '세액', '비고'];
-
 export const ItemTablePropertyForm: React.FC<FormProps> = ({ block, updateBlock }) => {
-  const currentColumns = Array.isArray(block.columns) ? block.columns : [];
+  const currentColumns = block.columns || [];
+  
+  const { settings } = useSettingsStore();
+  const customCols = settings?.custom_estimate_columns || [];
+  
+  const AVAILABLE_COLUMNS = [
+    'No.', '품번', '품명', '규격', '재질', '단위', '수량', '단가', '공급가액', '세액', '비고',
+    ...customCols.map(col => `(커스텀) ${col}`)
+  ];
   
   const [orderedList, setOrderedList] = React.useState<string[]>(() => {
     const unselected = AVAILABLE_COLUMNS.filter(c => !currentColumns.includes(c));
@@ -209,6 +216,33 @@ export const ItemTablePropertyForm: React.FC<FormProps> = ({ block, updateBlock 
             )}
           </Droppable>
         </DragDropContext>
+      </div>
+      <div className="space-y-1">
+        <label className="text-[10px] font-bold text-text-muted uppercase">헤더 배경색상</label>
+        <input 
+          type="color" 
+          value={block.headerBgColor || '#f9fafb'} 
+          onChange={(e) => updateBlock(block.id, { headerBgColor: e.target.value })}
+          className="w-full h-8 cursor-pointer rounded"
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1">
+          <label className="text-[10px] font-bold text-text-muted uppercase">글자 크기 (px)</label>
+          <BaseInput 
+            type="number"
+            value={block.fontSize || 12}
+            onChange={(e) => updateBlock(block.id, { fontSize: Number(e.target.value) })}
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-[10px] font-bold text-text-muted uppercase">행 높이 (px)</label>
+          <BaseInput 
+            type="number"
+            value={block.rowHeight || 24}
+            onChange={(e) => updateBlock(block.id, { rowHeight: Number(e.target.value) })}
+          />
+        </div>
       </div>
     </div>
   );
@@ -337,7 +371,7 @@ export const CompanyInfoPropertyForm: React.FC<FormProps> = ({ block, updateBloc
         ))}
       </div>
     </div>
-    <div className="flex items-center justify-between">
+    <div className="flex items-center justify-between mt-4">
       <label className="text-[10px] font-bold text-text-muted uppercase">직인(도장) 함께 표시</label>
       <input 
         type="checkbox" 
@@ -352,16 +386,106 @@ export const CompanyInfoPropertyForm: React.FC<FormProps> = ({ block, updateBloc
 export const PageNumberPropertyForm: React.FC<FormProps> = ({ block, updateBlock }) => (
   <div className="space-y-4">
     <div className="space-y-1">
-      <label className="text-[10px] font-bold text-text-muted uppercase">포맷</label>
+      <label className="text-[10px] font-bold text-text-muted uppercase">포맷 (Format)</label>
       <select 
         value={block.format || '{current} / {total}'}
         onChange={(e) => updateBlock(block.id, { format: e.target.value as any })}
         className="w-full bg-bg-surface border border-border-default rounded-lg p-2 text-sm text-text-primary outline-none focus:border-brand-500"
       >
-        <option value="{current} / {total}">1 / 2 (기본)</option>
-        <option value="Page {current} / {total}">Page 1 / 2</option>
+        <option value="Page {current} / {total}">Page 1 / 3</option>
+        <option value="{current} / {total}">1 / 3</option>
         <option value="- {current} -">- 1 -</option>
       </select>
+    </div>
+  </div>
+);
+
+export const FreeTextPropertyForm: React.FC<FormProps> = ({ block, updateBlock }) => (
+  <div className="space-y-4">
+    <div className="p-3 bg-blue-50/50 border border-blue-100 rounded-lg">
+      <h4 className="text-xs font-bold text-blue-800 mb-1">💡 자동 변수 치환 지원</h4>
+      <p className="text-[10px] text-blue-600 leading-relaxed">
+        텍스트 안에 아래 변수들을 <code>{'{ }'}</code>와 함께 쓰면, 견적서 렌더링 시 실제 데이터로 치환됩니다.<br/>
+        - <code>{'{고객사명}'}</code> : 고객 정보의 상호<br/>
+        - <code>{'{견적총액}'}</code> : VAT 포함 총액<br/>
+        - <code>{'{견적번호}'}</code> : 문서 번호<br/>
+        - <code>{'{작성일자}'}</code> : 견적 일자
+      </p>
+    </div>
+  </div>
+);
+
+export const ApprovalLinePropertyForm: React.FC<FormProps> = ({ block, updateBlock }) => {
+  const titles = block.titles || ['담당', '검토', '승인'];
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <label className="text-[10px] font-bold text-text-muted uppercase">결재 칸 설정</label>
+        {titles.map((title: string, idx: number) => (
+          <div key={idx} className="flex gap-2 items-center">
+            <span className="text-xs text-text-secondary w-4">{idx + 1}</span>
+            <BaseInput 
+              value={title} 
+              onChange={(e) => {
+                const newTitles = [...titles];
+                newTitles[idx] = e.target.value;
+                updateBlock(block.id, { titles: newTitles });
+              }}
+            />
+            <button 
+              onClick={() => {
+                const newTitles = titles.filter((_: any, i: number) => i !== idx);
+                updateBlock(block.id, { titles: newTitles });
+              }}
+              className="text-red-500 text-xs px-2"
+              disabled={titles.length <= 1}
+            >
+              삭제
+            </button>
+          </div>
+        ))}
+        {titles.length < 5 && (
+          <button 
+            onClick={() => updateBlock(block.id, { titles: [...titles, '신규'] })}
+            className="w-full py-1 border border-dashed border-border-strong rounded text-xs text-text-secondary hover:bg-bg-overlay"
+          >
+            + 결재 칸 추가
+          </button>
+        )}
+      </div>
+      <div className="space-y-1">
+        <label className="text-[10px] font-bold text-text-muted uppercase">칸 너비 (px)</label>
+        <BaseInput 
+          type="number"
+          value={block.boxWidth || 60} 
+          onChange={(e) => updateBlock(block.id, { boxWidth: Number(e.target.value) })}
+        />
+      </div>
+    </div>
+  );
+};
+
+export const QrCodePropertyForm: React.FC<FormProps> = ({ block, updateBlock }) => (
+  <div className="space-y-4">
+    <div className="space-y-1">
+      <label className="text-[10px] font-bold text-text-muted uppercase">연결할 데이터</label>
+      <select 
+        value={block.valueType || 'estimate_no'}
+        onChange={(e) => updateBlock(block.id, { valueType: e.target.value as any })}
+        className="w-full bg-bg-surface border border-border-default rounded-lg p-2 text-sm text-text-primary outline-none focus:border-brand-500"
+      >
+        <option value="estimate_no">견적번호 (Estimate No.)</option>
+        <option value="project_name">프로젝트명</option>
+        <option value="company_info">우리 회사 정보 (명함용)</option>
+      </select>
+    </div>
+    <div className="space-y-1">
+      <label className="text-[10px] font-bold text-text-muted uppercase">QR 사이즈 (px)</label>
+      <BaseInput 
+        type="number"
+        value={block.size || 60} 
+        onChange={(e) => updateBlock(block.id, { size: Number(e.target.value) })}
+      />
     </div>
   </div>
 );

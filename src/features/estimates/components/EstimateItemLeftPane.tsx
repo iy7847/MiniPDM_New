@@ -4,6 +4,7 @@ import { Button } from '../../../design-system/Button';
 import { ItemBasicSpecForm } from './forms/ItemBasicSpecForm';
 import { ItemProcessCostForm } from './forms/ItemProcessCostForm';
 import { ItemFinalCostForm } from './forms/ItemFinalCostForm';
+import { ItemCustomCostForm } from './forms/ItemCustomCostForm';
 
 interface EstimateItemLeftPaneProps {
   itemForm: EstimateItem;
@@ -32,6 +33,7 @@ interface EstimateItemLeftPaneProps {
   qtyInput: string;
   setQtyInput: (qty: string) => void;
   setIsManualPrice: (val: boolean) => void;
+  estimate?: any;
 }
 
 export const EstimateItemLeftPane: React.FC<EstimateItemLeftPaneProps> = ({
@@ -40,7 +42,7 @@ export const EstimateItemLeftPane: React.FC<EstimateItemLeftPaneProps> = ({
   isRecommending, recommendedMaterials, handleSpecChange,
   selectedCategory, setSelectedCategory, uniqueCategories, filteredMaterials,
   calcResult, heatTreatments, postProcessings,
-  qtyInput, setQtyInput, setIsManualPrice
+  qtyInput, setQtyInput, setIsManualPrice, estimate
 }) => {
   return (
     <>
@@ -89,6 +91,13 @@ export const EstimateItemLeftPane: React.FC<EstimateItemLeftPaneProps> = ({
           calcResult={calcResult}
           heatTreatments={heatTreatments}
           postProcessings={postProcessings}
+          disabled={isReadOnly}
+        />
+        <ItemCustomCostForm
+          itemForm={itemForm}
+          setItemForm={setItemForm}
+          estimate={estimate}
+          disabled={isReadOnly}
         />
         <ItemFinalCostForm
           qtyInput={qtyInput}
@@ -97,6 +106,7 @@ export const EstimateItemLeftPane: React.FC<EstimateItemLeftPaneProps> = ({
           setItemForm={setItemForm}
           setIsManualPrice={setIsManualPrice}
           calcResult={calcResult}
+          disabled={isReadOnly}
         />
       </div>
       

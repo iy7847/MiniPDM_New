@@ -128,12 +128,20 @@ export function useReceiving() {
       // 만약 새로 계산된 수량이 발주수량보다 크거나 같거나, 사용자가 "입고완료" 토글을 강제한 경우
       const nextStatus = (isComplete || newReceivedQty >= item.ordered_qty) ? '입고완료' : '수신확인';
 
+      const now = new Date().toISOString();
+      const today = now.split('T')[0];
+      const updateData: any = {
+        received_qty: newReceivedQty,
+        status: nextStatus,
+        updated_at: now
+      };
+      if (nextStatus === '입고완료') {
+        updateData.received_date = today;
+      }
+
       const { error } = await supabase
         .from(table)
-        .update({
-          received_qty: newReceivedQty,
-          status: nextStatus
-        })
+        .update(updateData)
         .eq('id', id);
 
       if (error) throw error;

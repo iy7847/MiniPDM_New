@@ -1,13 +1,109 @@
 <!doctype html>
-<html lang="en">
+<html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" href="/kep_logo.png" />
+    <link rel="shortcut icon" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>temp-app</title>
+    <title>MiniPDM v2.0</title>
+    <style>
+      body {
+        margin: 0;
+        background-color: #0D1117;
+        color: #E6EDF3;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        overflow: hidden;
+      }
+      .app-splash {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        width: 100vw;
+        background: radial-gradient(circle at 50% 40%, #161B22 0%, #0D1117 70%);
+        user-select: none;
+      }
+      .splash-logo-box {
+        position: relative;
+        width: 64px;
+        height: 64px;
+        background: #161B22;
+        border: 1px solid rgba(14, 165, 233, 0.4);
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 0 30px rgba(14, 165, 233, 0.25);
+        animation: splash-pulse 2s infinite ease-in-out;
+      }
+      .splash-title {
+        margin-top: 24px;
+        font-size: 20px;
+        font-weight: 800;
+        letter-spacing: -0.5px;
+        color: #FFFFFF;
+      }
+      .splash-badge {
+        font-size: 11px;
+        color: #38BDF8;
+        font-weight: 700;
+        margin-left: 6px;
+      }
+      .splash-desc {
+        margin-top: 8px;
+        font-size: 13px;
+        color: #8B949E;
+        font-weight: 500;
+      }
+      .splash-loader-bar {
+        margin-top: 28px;
+        width: 160px;
+        height: 3px;
+        background: #21262D;
+        border-radius: 999px;
+        overflow: hidden;
+        position: relative;
+      }
+      .splash-loader-progress {
+        position: absolute;
+        top: 0;
+        left: 0;
+        height: 100%;
+        width: 40%;
+        background: linear-gradient(90deg, transparent, #0EA5E9, #38BDF8);
+        border-radius: 999px;
+        animation: splash-loading 1.2s infinite ease-in-out;
+      }
+      @keyframes splash-pulse {
+        0%, 100% { transform: scale(1); box-shadow: 0 0 25px rgba(14, 165, 233, 0.2); }
+        50% { transform: scale(1.04); box-shadow: 0 0 35px rgba(14, 165, 233, 0.4); }
+      }
+      @keyframes splash-loading {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(350%); }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="app-splash">
+        <div class="splash-logo-box">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#0EA5E9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+            <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+            <line x1="12" y1="22.08" x2="12" y2="12"></line>
+          </svg>
+        </div>
+        <div class="splash-title">
+          MiniPDM <span class="splash-badge">v2.0</span>
+        </div>
+        <div class="splash-desc">시스템을 시작하는 중입니다...</div>
+        <div class="splash-loader-bar">
+          <div class="splash-loader-progress"></div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

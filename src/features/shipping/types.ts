@@ -3,7 +3,8 @@ export type ShipmentStatus = 'pending' | 'shipped' | 'delivered' | 'canceled';
 export interface Shipment {
   id: string;
   company_id: string;
-  order_id: string;
+  client_id?: string | null;
+  order_id?: string | null;
   shipment_no: string;
   status: ShipmentStatus;
 

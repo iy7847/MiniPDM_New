@@ -4,7 +4,7 @@ export const fetchClients = async (type?: 'customer' | 'supplier') => {
   let query = supabase.from('clients').select('*').order('created_at', { ascending: false });
   
   if (type) {
-    query = query.eq('type', type);
+    query = query.eq('client_type', type.toUpperCase());
   }
 
   const { data, error } = await query;

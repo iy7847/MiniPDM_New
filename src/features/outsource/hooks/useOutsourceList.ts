@@ -35,7 +35,7 @@ export function useOutsourceList() {
         .from('outsource_orders')
         .select(`
           id, order_item_id, supplier_id, supplier_name, process_name, quantity, status, order_date, expected_date,
-          order_items ( id, part_name, part_no, spec, material_name, files ( id, file_name, file_path, original_name ) )
+          order_items ( id, order_item_no, part_name, part_no, spec, material_name, files ( id, file_name, file_path, original_name ) )
         `)
         .order('created_at', { ascending: false });
 
@@ -47,7 +47,7 @@ export function useOutsourceList() {
         // Map data to ensure files is an array (even if empty) and map po_no if it exists via join or otherwise
         const mapped = data.map((d: any) => ({
           ...d,
-          po_no: d.id.substring(0, 8).toUpperCase(), // Using ID prefix as pseudo PO if we don't have a real one joined
+          po_no: d.order_items?.order_item_no || d.id.substring(0, 8).toUpperCase(),
           order_items: {
             ...d.order_items,
             files: Array.isArray(d.order_items?.files) ? d.order_items.files : []

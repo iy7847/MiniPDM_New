@@ -18,6 +18,7 @@ interface ExcelExportButtonProps {
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
   iconSize?: number;
   label?: React.ReactNode;
+  estimate?: any;
 }
 
 export const ExcelExportButton: React.FC<ExcelExportButtonProps> = ({
@@ -31,7 +32,8 @@ export const ExcelExportButton: React.FC<ExcelExportButtonProps> = ({
   className = "flex items-center gap-2 border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500 transition-all",
   variant = "secondary",
   iconSize = 16,
-  label = "엑셀 다운로드"
+  label = "엑셀 다운로드",
+  estimate
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [presets, setPresets] = useState<ExcelExportPreset[]>([]);
@@ -57,7 +59,7 @@ export const ExcelExportButton: React.FC<ExcelExportButtonProps> = ({
       
       if (fetchedPresets.length === 0) {
         // 2. If no presets, export with default columns directly
-        exportDataToExcel(getProcessedData(), defaultColumns, fileName);
+        exportDataToExcel(getProcessedData(), defaultColumns, fileName, estimate);
       } else {
         // 3. If presets exist, add default preset to the list and open modal
         const allPresets = [
@@ -70,13 +72,13 @@ export const ExcelExportButton: React.FC<ExcelExportButtonProps> = ({
     } catch (error) {
       console.error('Failed to fetch excel presets:', error);
       // Fallback: Export directly if error
-      exportDataToExcel(getProcessedData(), defaultColumns, fileName);
+      exportDataToExcel(getProcessedData(), defaultColumns, fileName, estimate);
     }
   };
 
   const handleConfirmExport = (preset: ExcelExportPreset) => {
     // preset.columns is already an array of strings in the DB
-    exportDataToExcel(getProcessedData(), preset.columns, fileName);
+    exportDataToExcel(getProcessedData(), preset.columns, fileName, estimate);
   };
 
   return (

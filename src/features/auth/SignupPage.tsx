@@ -11,8 +11,25 @@ export const SignupPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isAlreadyRegistered, setIsAlreadyRegistered] = useState(false);
   const [inviteToken, setInviteToken] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  const formatErrorMessage = (msg: string): string => {
+    if (msg.includes('already registered') || msg.includes('already been registered')) {
+      return '이미 가입되어 있는 계정(이메일)입니다.';
+    }
+    if (msg.includes('Password should be at least 6 characters')) {
+      return '비밀번호는 최소 6자리 이상이어야 합니다.';
+    }
+    if (msg.includes('rate limit')) {
+      return '요청 횟수를 초과했습니다. 잠시 후 다시 시도해주세요.';
+    }
+    if (msg.includes('valid email')) {
+      return '올바른 이메일 주소 형식이 아닙니다.';
+    }
+    return msg;
+  };
 
   useEffect(() => {
     const queryParams = new URLSearchParams(location.search);
@@ -36,7 +53,7 @@ export const SignupPage: React.FC = () => {
       
       setEmail(data[0].email);
     } catch (err: any) {
-      setError(err.message || '초대 정보를 불러올 수 없습니다.');
+      setError(formatErrorMessage(err.message || '초대 정보를 불러올 수 없습니다.'));
     }
   };
 
@@ -45,6 +62,7 @@ export const SignupPage: React.FC = () => {
     if (!inviteToken) return;
 
     setError(null);
+    setIsAlreadyRegistered(false);
     setLoading(true);
     try {
       // 1. Sign up user
@@ -78,7 +96,11 @@ export const SignupPage: React.FC = () => {
       }, 3000);
       
     } catch (err: any) {
-      setError(err.message || '회원가입 처리 중 오류가 발생했습니다.');
+      const rawMsg = err.message || '';
+      if (rawMsg.includes('already registered') || rawMsg.includes('already been registered')) {
+        setIsAlreadyRegistered(true);
+      }
+      setError(formatErrorMessage(rawMsg || '회원가입 처리 중 오류가 발생했습니다.'));
     } finally {
       setLoading(false);
     }
@@ -139,9 +161,26 @@ export const SignupPage: React.FC = () => {
 
                 <form onSubmit={handleSubmit} className="space-y-6">
                   {error && (
-                    <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-lg text-sm flex items-center gap-2 animate-in fade-in shrink-0">
-                      <div className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
-                      {error}
+                    <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3.5 rounded-xl text-sm space-y-2 animate-in fade-in shrink-0">
+                      <div className="flex items-start gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0 mt-1.5" />
+                        <div className="flex-1 font-medium leading-relaxed">{error}</div>
+                      </div>
+                      {isAlreadyRegistered && (
+                        <div className="pt-2 pl-3.5 border-t border-red-500/20 flex items-center justify-between gap-2">
+                          <span className="text-xs text-[#8B949E]">
+                            이미 계정이 있으신가요?
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => navigate('/login', { state: { email } })}
+                            className="text-xs font-semibold text-brand-400 hover:text-brand-300 underline flex items-center gap-1 shrink-0"
+                          >
+                            로그인 화면으로 이동
+                            <ArrowRight size={12} />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
 

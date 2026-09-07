@@ -90,7 +90,7 @@ export function MaterialShapeInputs({ category, shape, dims, onChange }: Props) 
 
   const renderInput = (label: string, key: keyof MaterialDimensions) => (
     <div className="space-y-1">
-      <label className="text-xs font-bold text-text-secondary">{label} (mm)</label>
+      <label className="text-xs font-bold text-text-secondary whitespace-nowrap block">{label} (mm)</label>
       <NumberInput
         value={dims[key] || 0}
         onChange={(v) => update(key, v)}
@@ -112,11 +112,11 @@ export function MaterialShapeInputs({ category, shape, dims, onChange }: Props) 
               <text x="50" y="25" fontSize="10" fill="currentColor" fontWeight="bold">D</text>
               <text x="5" y="45" fontSize="10" fill="currentColor" fontWeight="bold">T</text>
             </svg>
-            <div className="text-sm text-text-secondary">W: 가로, D: 세로, T: 두께</div>
+            <div className="text-sm text-text-secondary break-keep">T: 두께, W: 가로, D: 세로</div>
           </div>
+          {renderInput('두께 (T)', 't')}
           {renderInput('가로 (W)', 'w')}
           {renderInput('세로 (D)', 'd')}
-          {renderInput('두께 (T)', 't')}
         </>
       );
     }
@@ -132,7 +132,7 @@ export function MaterialShapeInputs({ category, shape, dims, onChange }: Props) 
               <text x="12" y="33" fontSize="10" fill="currentColor" fontWeight="bold">D</text>
               <text x="40" y="58" fontSize="10" fill="currentColor" fontWeight="bold">L</text>
             </svg>
-            <div className="text-sm text-text-secondary">
+            <div className="text-sm text-text-secondary break-keep">
               {isHex ? 'D: 대변(평행한 두 변 사이의 거리), L: 길이' : 'D: 외경(지름), L: 길이'}
             </div>
           </div>
@@ -153,7 +153,7 @@ export function MaterialShapeInputs({ category, shape, dims, onChange }: Props) 
               <text x="21" y="33" fontSize="10" fill="currentColor" fontWeight="bold">D</text>
               <text x="5" y="15" fontSize="10" fill="currentColor" fontWeight="bold">T</text>
             </svg>
-            <div className="text-sm text-text-secondary">D: 외경, T: 두께, L: 길이</div>
+            <div className="text-sm text-text-secondary break-keep">D: 외경, T: 두께, L: 길이</div>
           </div>
           {renderInput('외경 (D)', 'w')}
           {renderInput('두께 (T)', 't')}
@@ -174,7 +174,7 @@ export function MaterialShapeInputs({ category, shape, dims, onChange }: Props) 
               <text x="2" y="33" fontSize="10" fill="currentColor" fontWeight="bold">H</text>
               <text x="5" y="12" fontSize="10" fill="currentColor" fontWeight="bold">T</text>
             </svg>
-            <div className="text-sm text-text-secondary">W: 가로, H: 세로, T: 두께, L: 길이</div>
+            <div className="text-sm text-text-secondary break-keep">W: 가로, H: 세로, T: 두께, L: 길이</div>
           </div>
           {renderInput('가로 (W)', 'w')}
           {renderInput('세로 (H)', 'h')}
@@ -194,7 +194,7 @@ export function MaterialShapeInputs({ category, shape, dims, onChange }: Props) 
               <text x="5" y="30" fontSize="10" fill="currentColor" fontWeight="bold">H</text>
               <text x="35" y="35" fontSize="10" fill="currentColor" fontWeight="bold">T</text>
             </svg>
-            <div className="text-sm text-text-secondary">W: 가로, H: 세로, T: 두께, L: 길이</div>
+            <div className="text-sm text-text-secondary break-keep">W: 가로, H: 세로, T: 두께, L: 길이</div>
           </div>
           {renderInput('가로 (W)', 'w')}
           {renderInput('세로 (H)', 'h')}
@@ -214,7 +214,7 @@ export function MaterialShapeInputs({ category, shape, dims, onChange }: Props) 
               <text x="5" y="30" fontSize="10" fill="currentColor" fontWeight="bold">H</text>
               <text x="30" y="35" fontSize="10" fill="currentColor" fontWeight="bold">T</text>
             </svg>
-            <div className="text-sm text-text-secondary">W: 가로, H: 세로, T: 두께, L: 길이</div>
+            <div className="text-sm text-text-secondary break-keep">W: 가로, H: 세로, T: 두께, L: 길이</div>
           </div>
           {renderInput('가로 (W)', 'w')}
           {renderInput('세로 (H)', 'h')}
@@ -235,7 +235,7 @@ export function MaterialShapeInputs({ category, shape, dims, onChange }: Props) 
               <text x="48" y="30" fontSize="10" fill="currentColor" fontWeight="bold">T1(웹)</text>
               <text x="48" y="15" fontSize="10" fill="currentColor" fontWeight="bold">T2(플랜지)</text>
             </svg>
-            <div className="text-sm text-text-secondary">W: 가로, H: 높이, T1: 웹두께, T2: 플랜지두께, L: 길이</div>
+            <div className="text-sm text-text-secondary break-keep">W: 가로, H: 높이, T1: 웹두께, T2: 플랜지두께, L: 길이</div>
           </div>
           {renderInput('가로 (W)', 'w')}
           {renderInput('높이 (H)', 'h')}

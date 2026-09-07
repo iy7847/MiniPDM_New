@@ -17,13 +17,16 @@ const client = new Client({
 async function run() {
   await client.connect();
   
-  const migrationPath = path.join(__dirname, 'supabase', 'migrations', '20260731000001_create_split_rework_order.sql');
+  const migrationPath = path.join(__dirname, 'supabase', 'migrations', '20260826224201_add_process_routing_tables.sql');
   const sql = fs.readFileSync(migrationPath, 'utf8');
   
   try {
+    await client.query('BEGIN');
     await client.query(sql);
+    await client.query('COMMIT');
     console.log("Migration executed successfully!");
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error("Error executing migration:", err);
   } finally {
     await client.end();

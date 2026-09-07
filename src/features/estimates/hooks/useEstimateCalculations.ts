@@ -38,6 +38,7 @@ export type EstimateCalculationsParams = {
   
   // 기타 비용 및 마진
   outsource_cost?: number; // 외주비
+  custom_costs?: Record<string, number>; // 동적 항목 비용
   profit_rate?: number; // 이윤율 (%)
   
   // 5. 수량 및 할인/할증
@@ -125,7 +126,8 @@ export const calculateEstimate = (params: EstimateCalculationsParams): EstimateC
     heat_treatment_price = 0, post_process_price = 0,
     outsource_cost = 0, profit_rate = 0,
     qty_input = 1, discount_policy,
-    rounding_unit = 1000
+    rounding_unit = 1000,
+    custom_costs = {}
   } = params;
 
     // 1. 가공 치수 산출 (여유 기장 반영 혹은 사용자 수동 입력치 우선)
@@ -153,8 +155,11 @@ export const calculateEstimate = (params: EstimateCalculationsParams): EstimateC
     const heat_treatment_cost = Math.round(weight * heat_treatment_price);
     const post_process_cost = Math.round(weight * post_process_price);
 
+    // 동적 항목 비용 합계
+    const custom_costs_total = Object.values(custom_costs || {}).reduce((sum, cost) => sum + (Number(cost) || 0), 0);
+
     // 원가 합계 (할인 및 이윤 적용 전)
-    const base_cost = material_cost + processing_cost + heat_treatment_cost + post_process_cost + outsource_cost;
+    const base_cost = material_cost + processing_cost + heat_treatment_cost + post_process_cost + outsource_cost + custom_costs_total;
 
     // 이윤 적용된 기준가
     const sub_total = base_cost * (1 + profit_rate / 100);

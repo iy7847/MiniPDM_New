@@ -65,6 +65,10 @@ export interface OrderItem {
     };
   };
 
+  materials?: {
+    code: string;
+  };
+
   post_processing_name?: string;
 
   supply_type?: 'INHOUSE' | 'OUTSOURCE' | 'PURCHASE';
