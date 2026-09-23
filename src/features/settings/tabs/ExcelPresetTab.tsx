@@ -25,10 +25,10 @@ interface ExcelPresetTabProps {
   presets: ExcelExportPreset[];
   onAdd: (name: string) => void;
   onDelete: (id: string) => void;
-  onUpdate: (preset: ExcelExportPreset) => void;
+  onUpdateColumns: (presetId: string, columns: string[]) => void;
 }
 
-export const ExcelPresetTab: React.FC<ExcelPresetTabProps> = ({ presets, onAdd, onDelete, onUpdate }) => {
+export const ExcelPresetTab: React.FC<ExcelPresetTabProps> = ({ presets, onAdd, onDelete, onUpdateColumns }) => {
   const [newPresetName, setNewPresetName] = useState('');
   const [draggedItemIndex, setDraggedItemIndex] = useState<number | null>(null);
   

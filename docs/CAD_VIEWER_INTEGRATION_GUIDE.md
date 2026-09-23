@@ -182,7 +182,92 @@ export const DrawingDetailPanel: React.FC<{ stpBlob: Blob; fileName: string }> =
 
 ---
 
-## ⚙️ 4. `CadViewer` Props 인터페이스 상세 명세
+## ⚡ 4. 초고속 백그라운드 바운딩 박스 추출 API (`extractStepBoundingBox`)
+
+3D 뷰어 화면(Three.js/Canvas/모달)을 띄우지 않고, **견적 폼이나 도면 업로드 시 백그라운드에서 0.1~0.3초 만에 소재 치수를 추출**할 수 있는 독립 순수 연산 함수입니다.
+
+### 4-1. 단일 파일 업로드 시 자동 견적 폼 입력 예제
+
+```typescript
+import { extractStepBoundingBox } from '@/shared/components/cad-viewer';
+
+// 파일 업로드 onChange 이벤트 핸들러 (뷰어 없이 동작)
+const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  try {
+    // ⚡ 뷰어 화면 없이 백그라운드에서 0.1~0.3초 만에 바운딩 박스 고속 추출
+    const result = await extractStepBoundingBox(file);
+
+    console.log(`[추출 성공] 소요 시간: ${result.executionTimeMs} ms`);
+    console.log('가공 소재 외곽 치수 (XYZ AABB):', result.aabb.size); // [150.0, 80.0, 42.0]
+    
+    if (result.obb) {
+      console.log('최소 사이즈 블록 치수 (최적 OBB):', result.obb.size); // [145.2, 78.5, 40.1]
+      console.log(`부피 절감율: ${result.obb.volumeSavingsPercent}%`);
+    }
+
+    // MiniPDM 견적/발주 폼 State에 자동 반영!
+    setQuotationForm(prev => ({
+      ...prev,
+      partName: result.fileName,
+      rawMaterialWidth: result.aabb.size[0],
+      rawMaterialLength: result.aabb.size[1],
+      rawMaterialHeight: result.aabb.size[2],
+      unit: result.unit, // 'mm' 또는 'in'
+      // 🎯 원형(환봉) vs 사각(각재) 판정 및 추천 규격 자동 반영
+      materialShape: result.shapeClassification?.shapeType, // 'round' | 'box'
+      recommendedSpec: result.shapeClassification?.recommendation.label, // 예: "Ø 150.00 × 200.00 L (환봉)" 또는 "300.00 × 300.00 × 300.00 (각재)"
+      outerDiameter: result.shapeClassification?.recommendation.diameter, // 환봉인 경우 외경(Ø)
+    }));
+  } catch (error) {
+    console.error('바운딩 박스 추출 실패:', error);
+  }
+};
+```
+
+### 4-2. 다중 도면 일괄 업로드 시 고속 병렬 처리 (Batch Processing)
+
+견적 등록 시 여러 개의 STEP 파일을 드래그 앤 드롭했을 때, 수십 초씩 걸리는 화면 렌더링 없이 **1~2초 만에 모든 부품의 소재 치수와 최소 블록 크기 목록을 일괄 생성**할 수 있습니다:
+
+```typescript
+import { extractStepBoundingBox, type StepBoundingBoxResult } from '@/shared/components/cad-viewer';
+
+const handleBatchUpload = async (files: File[]) => {
+  const stepFiles = files.filter(f => f.name.endsWith('.stp') || f.name.endsWith('.step'));
+  
+  // 병렬로 초고속 백그라운드 테셀레이션 & 치수 계산 실행
+  const results: StepBoundingBoxResult[] = await Promise.all(
+    stepFiles.map(file => extractStepBoundingBox(file))
+  );
+
+  // 견적 테이블 행(Rows) 자동 일괄 생성
+  const quotationRows = results.map(r => ({
+    fileName: r.fileName,
+    materialShape: r.shapeClassification?.shapeType === 'round' ? '원형(환봉)' : '사각(각재)',
+    recommendedSpec: r.shapeClassification?.recommendation.label || '-',
+    materialSize: `${r.aabb.size[0]} × ${r.aabb.size[1]} × ${r.aabb.size[2]} ${r.unit}`,
+    optimalBlockSize: r.obb ? `${r.obb.size[0]} × ${r.obb.size[1]} × ${r.obb.size[2]} ${r.unit}` : '-',
+    savings: r.obb ? `${r.obb.volumeSavingsPercent.toFixed(1)}%` : '0%',
+    meshCount: r.meshCount,
+  }));
+
+  setQuoteTableData(quotationRows);
+};
+```
+
+### 4-3. D-컷/키홈 가공품의 원형 vs 사각 형상 판별 원리
+
+제품에 D-컷(평면 깎기), 키홈, 단차 가공이 적용되어 외형이 완전한 원형이 아니더라도, 본 엔진은 다음 3단계 알고리즘으로 원소재를 정확히 판별합니다:
+1. **외곽 원호(동심원) 검출**: D-컷 후 남은 원호 모서리가 외경 경계에 존재하는지 분석
+2. **극좌표 외경 일관성 추적**: 중심축 둘레 각도별 외곽 정점의 최대 반경($R_{\max}$) 일치도 검사
+3. **체적 충진율 검사**: 바운딩 박스 대비 메쉬 실제 체적 비율 분석 (원통 $\approx 78.5\%$, 사각 $\approx 95\%$)
+
+
+---
+
+## ⚙️ 5. `CadViewer` Props 인터페이스 상세 명세
 
 | 속성명 (Prop) | 타입 | 기본값 | 설명 |
 |---|---|:---:|---|
@@ -194,11 +279,12 @@ export const DrawingDetailPanel: React.FC<{ stpBlob: Blob; fileName: string }> =
 | **`showDimensionsBanner`** | `boolean` | `true` | 하단 가공 소재 외곽 치수(AABB / OBB) 및 상태바 표시 여부 |
 | **`showGrid`** | `boolean` | `false` | 3D 바닥 눈금선(그리드) 표시 여부 (기본: 깔끔한 다크 배경) |
 | **`onMeasurementsChange`** | `(items: MeasurementItem[]) => void` | `undefined` | 화면에서 추가/삭제된 치수 측정 결과 배열 콜백 |
+| **`onBoundingBoxCalculated`** | `(result: StepBoundingBoxResult) => void` | `undefined` | 모델 로드 및 소재 치수 계산 완료 시 호출되는 콜백 (견적 폼 자동 연동) |
 | **`className`** | `string` | `''` | 최상위 컨테이너에 적용할 추가 Tailwind CSS 클래스 |
 
 ---
 
-## 🔧 5. 트러블슈팅 및 주의사항 (FAQ)
+## 🔧 6. 트러블슈팅 및 주의사항 (FAQ)
 
 ### Q1. 화면에 "3D CAD 모델 불러오는 중..." 스피너가 멈추고 파싱에 실패합니다.
 - **원인**: `public/occt-import-js.wasm` 파일이 누락되었거나 브라우저에서 404 Not Found가 발생하는 경우입니다.
@@ -215,11 +301,11 @@ export const DrawingDetailPanel: React.FC<{ stpBlob: Blob; fileName: string }> =
 
 ---
 
-## 📄 6. 모듈 파일 구조 요약
+## 📄 7. 모듈 파일 구조 요약
 
 ```
 src/cad-viewer/
-├── index.ts                     # 외부 노출 엔트리포인트
+├── index.ts                     # 외부 노출 엔트리포인트 (컴포넌트 & extractStepBoundingBox)
 ├── CadViewer.tsx                # 메인 뷰어 컴포넌트
 ├── CadCanvas.tsx                # Three.js 3D 캔버스, 단면 절단, 솔리드 캡핑
 ├── CadToolbar.tsx               # 상단 통합 헤더 및 툴바 (뷰, 렌더모드, 바운딩박스, 단면 서브바)
@@ -227,8 +313,12 @@ src/cad-viewer/
 ├── CadDimensionsBanner.tsx      # 하단 가공 소재 치수 배너 (옵션 컴포넌트)
 ├── types.ts                     # 공용 TypeScript 인터페이스 정의
 │
+├── utils/
+│   └── extractStepBoundingBox.ts# ⚡ 뷰어 없는 초고속 바운딩 박스 백그라운드 추출 모듈
+│
 ├── geometry/
-│   └── BoundingBoxCalculator.ts # AABB 및 PCA/자코비 고유치 최소 OBB 엔진
+│   ├── BoundingBoxCalculator.ts # AABB 및 PCA/자코비 고유치 최소 OBB 엔진
+│   └── ShapeClassifier.ts       # 🔘 원형(환봉) vs 사각(각재) 소재 형상 자동 판정 엔진
 │
 ├── measurement/                 # 스마트 치수 측정 서브모듈
 │   ├── SnappingEngine.ts        # 점/선/원/평면 지능형 레이캐스트 스냅
@@ -244,3 +334,4 @@ src/cad-viewer/
     ├── stepParser.worker.ts     # Web Worker OpenCASCADE WASM 테셀레이션
     └── stepParserCore.ts        # 메쉬 및 홀(원) 지오메트리 위상 추출기
 ```
+

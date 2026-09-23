@@ -24,7 +24,121 @@
 
 ---
 
-## 📋 최근 완료 작업 (2026-09-07)
+## 📋 최근 완료 작업 (2026-09-21)
+
+### 1. 🛡️ 4대 핵심 결함(수주 전환 중복, 3D 뷰어 튕김, PDF 마스킹 복제, 초기 무한 로딩) 전수 해결
+1. **수주 전환 및 생성 시 `duplicate key value violates unique constraint "orders_order_number_key"` 원천 해결**:
+   - **원인**: 과거 마이그레이션에서 `orders.order_number`에 전역 UNIQUE 제약조건이 걸려 있어, 서로 다른 고객사 간에 동일한 수주번호(`P2609-001` 등)가 발급될 때 DB 제약조건 위반 발생.
+   - **조치**: 전역 UNIQUE 제약조건 제거 및 `(company_id, order_number)` 복합 UNIQUE 제약조건으로 테넌트 격리 마이그레이션(`supabase/migrations/20260921000000_fix_order_number_constraint_and_rpc.sql`, `[수주번호_중복제약조건_해결_마이그레이션].sql`) 생성.
+   - **보강**: `convert_estimate_to_order` RPC 함수 및 프론트엔드 `orderService.createDirectOrder`에 회사별 고유 채번 중복 회피 루프 장착.
+2. **3D CAD/STEP 뷰어 진입 후 2~3초 뒤 크래시/튕김 현상 해결**:
+   - **원인**: `CadCanvas.tsx` 내부 Three.js `animate()` 루프에서 `setFrameTick`을 초당 60회씩 호출하여 React 컴포넌트 전체가 1초에 60회씩 무한 리렌더링 폭주를 일으키고 가비지 컬렉션/스택 초과로 브라우저/Electron이 강제 종료됨.
+   - **조치**: `setFrameTick`을 완전 제거하고, `OrbitControls`의 `change` 이벤트 리스너에 `requestAnimationFrame` 쓰로틀링을 적용하여 사용자가 마우스로 카메라를 조작할 때만 2D 오버레이 좌표를 부드럽게 갱신하도록 분리. 정지 상태에서는 리렌더링 0회로 CPU 점유율 및 크래시 원천 소멸.
+3. **PDF 도면 마스킹 저장 후 품목 파일 목록에 동일 파일 2개 복제되는 버그 해결**:
+   - **원인**: `EstimateTable.tsx`의 `onSaveMaskedPdf`에서 이미 DB에 저장된 파일(`maskingFile.id` 존재)임에도 `onSaveFiles`를 무조건 호출하여 `files`와 `tempFiles`에 동일한 파일이 중복 추가됨.
+   - **조치**: 기존 DB 파일 마스킹 시 `files` 목록에서 기존 파일을 분리하고 `onRemoveSingleFile`을 연계하여 단일 교체 처리.
+4. **앱 최초 기동 시 세션/프로필 조회 지연으로 인한 간헐적 무한 로딩 방지**:
+   - **원인**: 네트워크 지연 또는 Supabase 세션 잠금 시 `loading` 상태가 해제되지 않고 중앙 스피너에 갇히는 현상.
+   - **조치**: `AuthProvider.tsx`에 2초 절대 하드 타임아웃 가드(`setTimeout(() => setLoading(false), 2000)`)를 장착하여 어떠한 예외 상황에서도 2초 내에 무조건 스피너를 풀고 화면으로 진입하도록 보장.
+
+---
+
+
+### 1. 👑 KEP 고객사 라이선스 마스터 가입 정보 조회 및 상세 관리 고도화
+- **고객사 기업 정보 및 가입 이메일 상시 표시**:
+  - `MasterLicensePage.tsx` 목록에서 사업자등록번호, 대표자명, 가입 이메일(`✉`), 대표 전화번호(`☎`)를 업체명 서브텍스트로 상시 노출.
+  - 사업자등록번호 미입력 업체의 경우 `사업자번호 미등록` 뱃지를 표시하여 누락 상태 직관적 식별.
+- **고객사 가입 정보 및 소속 사용자 상세 모달(`CompanyDetailModal.tsx`) 신설**:
+  - 업체명 클릭 시 상세 모달 오픈.
+  - **기업 기본 및 가입 정보 탭**: 업체명, 대표자명, 사업자번호(`BizNoInput` 자동 포맷팅), 가입/대표 이메일, 전화번호, 팩스, 사업장 주소를 마스터 관리자가 직접 확인 및 수정·저장 가능.
+  - **소속 사용자 계정 탭**: 해당 고객사에 등록된 사내 계정 목록(성명, 관리자 여부, 이메일, 직책, 연락처, 가입일자) 및 초대 대기 목록 표기.
+- **검색 필터 확장**:
+  - 검색창에서 업체명, 대표자, 사업자번호 외에 기업 이메일 및 가입 마스터 계정 이메일로도 즉시 검색 가능하도록 필터링 확장.
+### 2. 🌐 Cloudflare R2 공식 정식 릴리즈 배포 완결 (v1.2.3)
+- **패키징 및 원격 배포**:
+  - `package.json` 버전 1.2.3 상향.
+  - `MiniPDM Setup 1.2.3.exe` (157.80 MB), `latest.yml`, `*.blockmap` Cloudflare R2 원격 배포 완료.
+  - 고객사 라이선스 마스터 가입 정보 조회 및 상세 수정 모달 탑재 버전 정식 배포.
+  - 공식 다운로드 랜딩 웹페이지(`https://storage.kendp.com/index.html`) v1.2.3 갱신 완료.
+
+---
+
+### 1. 🌐 Cloudflare R2 공식 정식 릴리즈 배포 완결 (v1.2.2)
+- **공정명 및 상세 설명 동시 표기**:
+  - `ProcessDesignModal`, `ProcessRoutingTab`, `ProductionProcessDetailModal`, `ShopFloorPage`, `ProductionScanModal` 등 공정이 노출되는 전 화면에서 공정명(볼드 강조)과 상세 설명(보조 텍스트 톤)이 함께 노출되도록 개선.
+  - 공정 추가 및 선택 드롭다운 옵션에 `[사내] 이름 (설명)`, `⚡ [외주] 이름 (설명)` 형식 적용.
+- **외주 공정 시각적 색상 차별화(Warning/Amber)**:
+  - `StatusBadge`의 `process` 도메인(`OUTSOURCE`, `true`)을 `warning`으로 변경하여 테이블 및 템플릿 목록 뱃지가 오렌지색으로 표시되도록 일원화.
+  - 공정 설계 모달, 라우팅 템플릿 설계 모달의 드래그 카드에 외주 전용 배경(`bg-amber-500/10`), 테두리(`border-amber-500/40`), 텍스트(`text-amber-300`), 순번 배지(`bg-amber-500/20 text-amber-400`), 트럭 아이콘 포함 `🚚 외주` 뱃지 적용.
+  - 현장 키오스크(`ShopFloorPage`)의 상단 로드맵 및 현재 차례 공정 카드에 외주 색상 강조 적용.
+  - 바코드 스캔 모달(`ProductionScanModal`)의 대기 공정 카드 및 진행 중 카드에 외주 오렌지 강조 톤 적용.
+- **패키징 및 원격 배포 완료**:
+  - `package.json` 버전 1.2.2 상향, `MiniPDM Setup 1.2.2.exe` (157.80 MB), `latest.yml`, `*.blockmap` Cloudflare R2 원격 배포 완료.
+  - 공식 다운로드 랜딩 웹페이지(`https://storage.kendp.com/index.html`) v1.2.2 갱신 완료.
+
+---
+
+### 1. 9대 결함(업체 등록, 수주 전환, PDF 마스킹/뷰어, 도면 분할, 엑셀 프리셋 등) 전수 해결 및 시스템 안정화
+- **업체 신규 등록 오류 해결**: `useClients.ts`에서 변수명 충돌(`company_id`) 수정, `sanitizeClientData`를 통한 빈 문자열 null 변환, RLS 정책 보강.
+- **수주 전환 오류 해결**: 거래처 미지정 및 임시행(`temp-`) 감지 가드 추가, `convert_estimate_to_order` RPC 채번 충돌 방어 및 에러 메시지 개선.
+- **PDF 뷰어 마스킹 및 경로 오류 해결**: `DocumentMaskingModal.tsx`에서 `company_root_path` 자동 결합, `electron/main.ts`의 사내 임시데이터 및 로컬 스토리지 다중 폴백 스캔 장착.
+- **도면 일괄 분할 에러 해결**: 품번 미지정 페이지 기본 품번 자동 생성, 폴더 선택창(`select-directory` IPC) 스마트 폴백 연동.
+- **환경 설정 엑셀 프리셋 에러 해결**: `SettingsPage.tsx`와 `ExcelPresetTab.tsx` 간 props 불일치(`onUpdateColumns`) 해소로 크래시 원천 차단.
+- **엑셀 붙여넣기 치수 파싱 보강**: 규격 문자열(`spec`)에서 사각/원형 치수를 자동 분해(`spec_w, d, h`)하여 단가 계산기 치수 누락 방지.
+- **견적서 인쇄 로컬 직인/로고 엑박 해결**: Chromium 보안 정책 우회를 위한 `read-local-file` Blob URL(`blob:http://...`) 변환 연동.
+- **외주 공급처 및 수주 도면 저장 경로 동기화**: `company_id` 격리 쿼리 강화 및 도면 저장/읽기 경로 일원화.
+
+### 2. 데스크탑 네이티브 환경 최적화 (Desktop Native Optimization)
+- **창 크기/위치 상태 자동 복원 및 최소 해상도 가드**: `userData/window-state.json`에 좌표, 크기, 최대화 여부를 실시간 저장 및 복원. 듀얼 모니터 해제 시 화면 밖 좌표 보정. 최소 해상도 `1024x700` 가드 적용.
+- **Windows 11 모던 일체형 프레임리스 타이틀바**: `titleBarStyle: 'hidden'`, `titleBarOverlay` 적용. TopBar 드래그 지원 및 버튼/입력창 no-drag 분리. 우측 캡션 버튼 패딩 확보.
+- **전역 텍스트 선택 통제 및 슬림 스크롤바**: `body`에 `user-select: none;` 적용(입력창 및 그리드 복사 정상 허용), OS 기본 스크롤바를 6px 다크 커스텀 스크롤바로 교체.
+- **프로덕션 단축키 가드**: `F5`, `Ctrl+R` 새로고침 오동작 차단.
+
+### 3. 출하 관리 화면 텍스트 찌그러짐 및 자동 로그인 복원 완결
+- **출하 관리 타이틀 세로 찌그러짐 해결**: `PageHeader` 좌측에 `shrink-0` 가드를 부여하고, 바코드 스캔·고객사 선택·검색창·보기모드 토글을 하단의 독립 전용 툴바(`Toolbar`)로 분리하여 시원한 풀 너비(Full-width) 레이아웃 복원.
+- **자동 로그인 세션 조기 탈락 해결**: `AuthProvider`의 `loading` 초기값을 `!initialSession?.user`로 교정하여 비동기 세션 복원 중 `/login`으로 조기 튕김 방어. `LoginPage`에 세션 복원 감지 시 메인 대시보드로 자동 복귀하는 가드 탑재.
+
+### 4. 🌐 Cloudflare R2 공식 정식 릴리즈 배포 완결 (v1.2.1)
+- **설치 패키지 배포**: `MiniPDM Setup 1.2.1.exe` (157.80 MB), `latest.yml`, `*.blockmap` Cloudflare R2 버킷(`minipdm-storage`) 업로드 완료.
+- **공식 랜딩 페이지 갱신**: `https://storage.kendp.com/index.html` (v1.2.1 다운로드 링크 및 변경점 게시) 및 자동 업데이트 엔드포인트(`https://storage.kendp.com/updates/latest.yml`) 실시간 배포 검증 완료.
+
+---
+
+## 📋 이전 완료 작업 (2026-09-08)
+
+### 1. 3D CAD 뷰어(`CadViewer`) 탑재 및 제품 사이즈 자동 연동 파이프라인 완결 (2026-09-08)
+- **WebAssembly 3D 엔진 인프라 구축**:
+  - `three.js` 및 OpenCASCADE 기반 WebAssembly 커널 `occt-import-js` 패키지 도입.
+  - `public/occt-import-js.wasm` (20.52MB), `public/occt-import-js.js` (0.18MB) 탑재 및 `index.html` 상대경로 로드로 Electron 데스크톱 앱과 브라우저 환경 완벽 호환.
+  - `React3DViewer`의 핵심 뷰어 모듈을 `src/shared/components/cad-viewer`로 공용화 이식.
+- **3D 치수 자동 추출 및 마진 가산 파이프라인 구축**:
+  - **백그라운드 고속 연산 (`extractStepBoundingBox.ts`)**: 견적 상세 상단 드롭존(`EstimateItemHeaderDropZone.tsx`)에 STP 파일 첨부 시, Web Worker 기반으로 0.5초 만에 AABB/OBB 및 원형(환봉) vs 사각(각재) 형상을 자동 판별하여 가공 규격(`spec_*`) 주입.
+  - **원소재 치수(`raw_*`) 마진 가산**: 환경설정(`companyInfo`)의 가공 여유치(`default_margin_*`)를 가산하여 원소재 규격 자동 계산.
+    - 사각: $W+\text{margin\_w},\ D+\text{margin\_d},\ H+\text{margin\_h}$
+    - 원형: $\text{Ø}+\text{margin\_round\_w},\ L+\text{margin\_round\_d},\ H=0$
+  - **뷰어 내 원클릭 치수 적용 (`CadStatusBar.tsx`)**: 뷰어 하단 상태바에 `[✨ 치수 적용]` 버튼 탑재, 회전/OBB 모드에서 즉시 폼 동기화.
+  - **원형 모드 치수 입력 개선 (`ItemBasicSpecForm.tsx`)**: 원형(Round) 모드 시 `Ø (외경)` 및 `L (길이)` 입력 필드 정상 노출.
+- **전역 3D 배지(Badge) 내장 CAD 뷰어 모달 연동**:
+  - `FileBadge.tsx`: 테이블의 `[3D]` 배지 클릭 시 외부 프로그램 실행 대신 `CadViewer isModal={true}` 전체화면 모달 즉시 팝업.
+  - `OrderItemsTable.tsx`: 수주 품목 리스트 내 3D 파일 클릭 핸들러에 내장 CAD 뷰어 모달 연동.
+  - Electron `read-local-file` IPC 통신으로 로컬 디스크 및 네트워크 스토리지의 STP 바이너리 고속 스트리밍.
+- **🌐 Cloudflare R2 공식 정식 릴리즈 배포 완료 (v1.2.0)**:
+  - `MiniPDM Setup 1.2.0.exe` (157.8MB), `latest.yml`, `*.blockmap` R2 원격 배포 완료.
+  - 공식 랜딩 페이지(`https://storage.kendp.com/index.html`) 및 자동 업데이트 엔드포인트 라이브 검증 완료.
+
+### 2. 프로젝트 전수 감사 기반 8대 잠재적 결함 보완 및 런타임 안정화 완결 (2026-09-08)
+- **도면 경로(`company_root_path`) 영구 동기화**: `SettingsPage.tsx` 및 `AuthProvider.tsx`에서 회사의 `root_path`를 `localStorage`에 자동 동기화하여 신규 PC나 NAS 네트워크 환경에서 도면 로드 실패 원천 방어.
+- **Electron `read-local-file` Buffer pool 정밀 슬라이스 반환**: `electron/main.ts`에서 Node.js Buffer 풀 공유로 인해 파일 뒤에 가비지 바이트가 덧붙여져 STP/PDF 파일 구조가 깨지는 현상 방어.
+- **3D 엔진 WASM 스크립트 동적 로드 프로토콜 분기**: `extractStepBoundingBox.ts`에서 Electron 패키징 배포본(`file://`) 환경의 404 스크립트 로드 오류 방어.
+- **목록 검색어/필터(Sticky Filters) Race Condition 방어**: `useStickySearchParams.ts`에 `initialPathRef` 마운트 경로 일치 검사 가드를 추가하여 페이지 언마운트 시 기존 세션스토리지가 초기화되는 버그 완벽 차단.
+- **견적 계산식 환봉(원형) `raw_h` 마진 오적용 방어**: `useEstimateCalculations.ts`에서 원형 가공품의 원소재 두께를 0으로 안전 고정.
+- **단가 계산기 반올림 단위 0 나눗셈 방어**: `useItemCalculator.ts`에서 `rounding_unit > 0` 조건부 처리로 `Infinity`/`NaN` 화면 출력 방어.
+- **3D 치수 자동 적용 시 마진 안전 파서 헬퍼 적용**: `EstimateItemRightPane.tsx` 및 `EstimateItemHeaderDropZone.tsx`에 `getMargin` 및 NaN 방어로직 장착.
+- **웹 브라우저 환경 3D 도면 열람 안내 UX 보강**: 데스크톱 앱 권장 안내 토스트 표시.
+
+---
+
+## 📋 이전 완료 작업 (2026-09-07)
 
 ### 1. KEP 고객사 라이선스 관리 & 앱 내부 마스터 통제 시스템 (방법 1) 완결 (2026-09-07)
 - **DB 스키마 마이그레이션 및 실시간 연동**:

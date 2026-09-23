@@ -274,9 +274,11 @@ export function useOrderDetail(orderId: string | undefined) {
       
       let finalFilePath = `browser_temp/${Date.now()}_${file.name}`; // 폴백 경로 (브라우저 테스트용)
 
+      const targetCompanyId = order?.company_id || 'DEFAULT_COMPANY';
+
       // 실제 디스크에 파일 저장 (동기화)
       if (window.fileSystem && window.fileSystem.saveFile && srcPath) {
-        const res = await window.fileSystem.saveFile(srcPath, order?.company_id, targetPath);
+        const res = await window.fileSystem.saveFile(srcPath, targetCompanyId, targetPath);
         if (res.success && res.filePath) {
           finalFilePath = res.filePath;
         } else {
@@ -284,7 +286,7 @@ export function useOrderDetail(orderId: string | undefined) {
         }
       } else if (window.fileSystem && (window.fileSystem as any).saveFileFromBuffer && !srcPath) {
         const arrayBuffer = await file.arrayBuffer();
-        const res = await (window.fileSystem as any).saveFileFromBuffer(arrayBuffer, order?.company_id, targetPath, file.name);
+        const res = await (window.fileSystem as any).saveFileFromBuffer(arrayBuffer, targetCompanyId, targetPath, file.name);
         if (res.success && res.filePath) {
           finalFilePath = res.filePath;
         } else {

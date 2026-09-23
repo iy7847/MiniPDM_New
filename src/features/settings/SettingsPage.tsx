@@ -75,6 +75,9 @@ export function SettingsPage() {
   useEffect(() => {
     if (settings) {
       setForm(settings);
+      if (settings.root_path) {
+        localStorage.setItem('company_root_path', settings.root_path);
+      }
     }
   }, [settings]);
 
@@ -91,6 +94,9 @@ export function SettingsPage() {
     setSaving(true);
     try {
       await updateSettings(companyId, form);
+      if (form.root_path) {
+        localStorage.setItem('company_root_path', form.root_path);
+      }
       toast.success('설정이 성공적으로 저장되었습니다.');
     } catch (err: any) {
       toast.error(`저장 실패: ${err.message}`);

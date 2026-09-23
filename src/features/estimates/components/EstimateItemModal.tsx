@@ -236,8 +236,8 @@ export const EstimateItemModal: React.FC<EstimateItemModalProps> = ({
           estimate={estimate}
         />
       }
-      rightPane={<EstimateItemRightPane itemForm={itemForm} setItemForm={setItemForm} isReadOnly={isReadOnly} />}
-      headerExtra={<EstimateItemHeaderDropZone isReadOnly={isReadOnly} setItemForm={setItemForm} />}
+      rightPane={<EstimateItemRightPane itemForm={itemForm} setItemForm={setItemForm} isReadOnly={isReadOnly} companyInfo={companyInfo} />}
+      headerExtra={<EstimateItemHeaderDropZone isReadOnly={isReadOnly} setItemForm={setItemForm} companyInfo={companyInfo} />}
     />
   );
 };

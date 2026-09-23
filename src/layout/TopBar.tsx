@@ -69,13 +69,19 @@ export const TopBar: React.FC = () => {
     ? '관리자' 
     : '일반 사용자';
 
+  const isElectron = typeof window !== 'undefined' && !!(window as any).ipcRenderer;
+
   return (
     <>
-      <header className="h-16 bg-bg-surface border-b border-border-default flex items-center justify-between px-6 shrink-0 transition-colors">
+      <header 
+        style={{ WebkitAppRegion: 'drag' } as any}
+        className={`h-14 bg-bg-surface border-b border-border-default flex items-center justify-between px-6 shrink-0 transition-colors select-none ${isElectron ? 'pr-36' : ''}`}
+      >
         <button 
           type="button"
           onClick={toggleSearch}
-          className="flex-1 max-w-md relative flex items-center h-10 px-3.5 bg-bg-base hover:bg-bg-elevated border border-border-default hover:border-brand-500/40 rounded-xl transition-all text-left group shadow-sm"
+          style={{ WebkitAppRegion: 'no-drag' } as any}
+          className="flex-1 max-w-md relative flex items-center h-9 px-3.5 bg-bg-base hover:bg-bg-elevated border border-border-default hover:border-brand-500/40 rounded-xl transition-all text-left group shadow-sm"
         >
           <Search className="text-text-secondary group-hover:text-brand-400 mr-2.5 transition-colors shrink-0" size={16} />
           <span className="text-sm text-text-secondary group-hover:text-text-primary flex-1 transition-colors truncate">
@@ -86,7 +92,7 @@ export const TopBar: React.FC = () => {
           </kbd>
         </button>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3" style={{ WebkitAppRegion: 'no-drag' } as any}>
           {/* 🚀 백그라운드 자동 업데이트 알림 & 원클릭 재시작 적용 버튼 */}
           {updateInfo.status === 'downloaded' && (
             <div className="flex items-center gap-2 animate-in fade-in slide-in-from-top-1 duration-300">

@@ -18,6 +18,7 @@ import { EXT_2D, EXT_3D } from '../utils/fileMatching';
 import { getCurrencySymbol } from '../../../shared/utils/currency';
 import { DocumentMaskingModal } from '../../../shared/components/DocumentMaskingModal';
 import { ImagePreviewModal } from '../../../shared/components/ImagePreviewModal';
+import { useCadViewerStore } from '../../../shared/stores/useCadViewerStore';
 import { toast } from '../../../shared/stores/useToastStore';
 import { MaskedText } from '../../../design-system';
 import { usePermissions } from '../../../shared/hooks/usePermissions';
@@ -86,6 +87,7 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
 
   const handleOpenMasking = async (file: any, itemId?: string) => {
     const fileName = (file.name || file.file_name || '').toLowerCase();
+    const rawFileName = file.name || file.file_name || 'model.stp';
     
     if (fileName.endsWith('.pdf')) {
       setMaskingFile(file);
@@ -94,6 +96,10 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
     } else if (fileName.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
       setPreviewFile(file);
       setImagePreviewModalOpen(true);
+    } else if (fileName.endsWith('.stp') || fileName.endsWith('.step')) {
+      // 🚀 3D CAD 파일은 전역 3D CAD 뷰어로 엽니다.
+      useCadViewerStore.getState().openCadViewer(file);
+      return;
     } else {
       let filePath = file.file_path || file.path;
       if (!filePath && (window as any).webUtils && file instanceof File) {
@@ -428,12 +434,52 @@ export const EstimateTable: React.FC<EstimateTableProps> = ({
         onClose={() => setMaskingModalOpen(false)} 
         file={maskingFile} 
         onSaveMaskedPdf={(newFile) => {
-          if (maskingFile && (maskingFile.id || maskingFile.path) && maskingItemId && onRemoveSingleFile && !isReadOnly) {
-            onRemoveSingleFile(maskingItemId, maskingFile.id || maskingFile, true);
+          if (!maskingItemId || isReadOnly) return;
+          
+          const isTemp = !maskingFile?.id;
+          if (isTemp) {
+            // 1) 아직 DB에 저장되지 않은 임시 파일(tempFiles)인 경우
+            onChange(items.map(it => {
+              if (it.id === maskingItemId || `temp-${it.part_no || it.part_name}` === maskingItemId) {
+                const oldName = maskingFile?.name || maskingFile?.file_name;
+                return {
+                  ...it,
+                  tempFiles: (it.tempFiles || []).map((f: any) => f.name === oldName ? newFile : f)
+                };
+              }
+              return it;
+            }));
+
+            if (onSaveFiles) {
+              onSaveFiles(maskingItemId, [newFile]);
+            }
+          } else {
+            // 2) 이미 DB에 등록된 파일인 경우: 기존 DB 파일 레코드와 중복되지 않도록 교체 처리
+            if (onRemoveSingleFile && maskingFile.id) {
+              onRemoveSingleFile(maskingItemId, maskingFile.id);
+            }
+
+            onChange(items.map(it => {
+              if (it.id === maskingItemId || `temp-${it.part_no || it.part_name}` === maskingItemId) {
+                const oldName = maskingFile?.name || maskingFile?.file_name;
+                const filteredFiles = (it.files || []).filter((f: any) => f.id !== maskingFile.id);
+                const remainingTemp = (it.tempFiles || []).filter((f: any) => f.name !== oldName);
+                return {
+                  ...it,
+                  files: filteredFiles,
+                  tempFiles: [...remainingTemp, newFile]
+                };
+              }
+              return it;
+            }));
+
+            if (onSaveFiles) {
+              onSaveFiles(maskingItemId, [newFile]);
+            }
           }
-          if (onSaveFiles && !isReadOnly) {
-            onSaveFiles(maskingItemId!, [newFile]);
-          }
+
+          // 3) 현재 열려있는 maskingFile 참조 갱신
+          setMaskingFile(newFile);
         }} 
       />
 

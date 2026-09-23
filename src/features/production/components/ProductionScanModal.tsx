@@ -294,7 +294,13 @@ export const ProductionScanModal: React.FC<ProductionScanModalProps> = ({ barcod
                         <Badge variant={log.status === '외주가공중' ? 'warning' : 'primary'} className="mb-2">
                           {log.status}
                         </Badge>
-                        <p className="text-lg font-bold text-text-primary">{log.process_name}</p>
+                        <p className="text-lg font-bold text-text-primary">
+                          {log.process_name}
+                          {(() => {
+                            const mp = masterProcesses.find(m => m.name === log.process_name || (log.process_id && m.id === log.process_id));
+                            return mp?.description ? <span className="ml-2 text-sm font-normal text-text-secondary">({mp.description})</span> : null;
+                          })()}
+                        </p>
                         <p className="text-sm text-text-secondary mt-1">작업자: {log.worker || '미지정'} | 작업 중인 수량: <strong className="text-text-primary">{log.start_qty || totalQty}개</strong></p>
                       </div>
                       <ArrowRight className="text-text-tertiary" />
@@ -307,42 +313,50 @@ export const ProductionScanModal: React.FC<ProductionScanModalProps> = ({ barcod
                 <div className="mt-8">
                   <h3 className="text-sm font-bold text-text-secondary mb-3">설계된 공정 (시작하려면 클릭)</h3>
                   <div className="space-y-3">
-                    {plannedLogs.map(log => (
-                      <div 
-                        key={log.id} 
-                        className="p-4 bg-bg-surface border border-border-default border-dashed rounded-lg hover:border-brand-500 hover:bg-brand-500/10 cursor-pointer transition-colors flex justify-between items-center"
-                        onClick={() => {
-                          const masterProc = masterProcesses.find(
-                            mp => mp.name === log.process_name || (log.process_id && mp.id === log.process_id)
-                          );
-                          const isOutsource = masterProc ? masterProc.is_outsource : (log.process_type === 'OUTSOURCE');
+                    {plannedLogs.map(log => {
+                      const masterProc = masterProcesses.find(
+                        mp => mp.name === log.process_name || (log.process_id && mp.id === log.process_id)
+                      );
+                      const isOutsource = masterProc ? masterProc.is_outsource : (log.process_type === 'OUTSOURCE');
 
-                          setSelectedJob(log);
-                          setStartQty(availableQty.toString());
-                          setStartProcessType(isOutsource ? 'OUTSOURCE' : 'INTERNAL');
-                          setStartProcessName(log.process_name);
-                          setStartSupplierId('');
-                          setMode('START_NEW');
-                        }}
-                      >
-                        <div>
-                          <div className="flex items-center gap-2 mb-2">
-                            <Badge variant="neutral">대기 중</Badge>
-                            {(() => {
-                              const mp = masterProcesses.find(m => m.name === log.process_name || (log.process_id && m.id === log.process_id));
-                              const isOut = mp ? mp.is_outsource : (log.process_type === 'OUTSOURCE');
-                              return isOut ? (
-                                <span className="text-xs px-2 py-0.5 rounded bg-orange-500/20 text-orange-400 border border-orange-500/30">외주</span>
+                      return (
+                        <div 
+                          key={log.id} 
+                          className={`p-4 rounded-lg cursor-pointer transition-colors flex justify-between items-center border border-dashed ${
+                            isOutsource 
+                              ? 'bg-orange-500/5 border-orange-500/30 hover:border-orange-500 hover:bg-orange-500/10' 
+                              : 'bg-bg-surface border-border-default hover:border-brand-500 hover:bg-brand-500/10'
+                          }`}
+                          onClick={() => {
+                            setSelectedJob(log);
+                            setStartQty(availableQty.toString());
+                            setStartProcessType(isOutsource ? 'OUTSOURCE' : 'INTERNAL');
+                            setStartProcessName(log.process_name);
+                            setStartSupplierId('');
+                            setMode('START_NEW');
+                          }}
+                        >
+                          <div>
+                            <div className="flex items-center gap-2 mb-2">
+                              <Badge variant="neutral">대기 중</Badge>
+                              {isOutsource ? (
+                                <span className="text-xs px-2 py-0.5 rounded bg-orange-500/20 text-orange-400 border border-orange-500/30 font-semibold">외주</span>
                               ) : (
                                 <span className="text-xs px-2 py-0.5 rounded bg-brand-500/20 text-brand-400 border border-brand-500/30">사내</span>
-                              );
-                            })()}
+                              )}
+                            </div>
+                            <p className={`text-lg font-bold ${isOutsource ? 'text-orange-300' : 'text-text-primary text-opacity-80'}`}>
+                              {log.process_name}
+                              {(() => {
+                                const mp = masterProcesses.find(m => m.name === log.process_name || (log.process_id && m.id === log.process_id));
+                                return mp?.description ? <span className={`ml-2 text-sm font-normal ${isOutsource ? 'text-orange-300/70' : 'text-text-secondary'}`}>({mp.description})</span> : null;
+                              })()}
+                            </p>
                           </div>
-                          <p className="text-lg font-bold text-text-primary text-opacity-80">{log.process_name}</p>
+                          <Plus className={isOutsource ? 'text-orange-400' : 'text-brand-500'} />
                         </div>
-                        <Plus className="text-brand-500" />
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -382,6 +396,10 @@ export const ProductionScanModal: React.FC<ProductionScanModalProps> = ({ barcod
                           <p className="font-bold text-text-primary text-sm flex items-center gap-2">
                             <CheckCircle className="w-4 h-4 text-success" />
                             {log.process_name}
+                            {(() => {
+                              const mp = masterProcesses.find(m => m.name === log.process_name || (log.process_id && m.id === log.process_id));
+                              return mp?.description ? <span className="font-normal text-text-secondary text-xs">({mp.description})</span> : null;
+                            })()}
                           </p>
                           <p className="text-xs text-text-tertiary mt-1">
                             {log.worker || '작업자 미지정'} | 양품: <strong className="text-success">{log.good_qty}</strong> 불량: <strong className="text-danger">{log.defect_qty}</strong> | 종료: {log.end_time ? new Date(log.end_time).toLocaleString() : '-'}
@@ -434,7 +452,13 @@ export const ProductionScanModal: React.FC<ProductionScanModalProps> = ({ barcod
                 /* 이미 설계된 공정인 경우: 공정 안내 카드 */
                 <div className="p-4 bg-bg-surface border border-border-default rounded-lg">
                   <p className="text-xs text-text-tertiary mb-1">설계된 공정명</p>
-                  <p className="text-xl font-bold text-text-primary">{startProcessName}</p>
+                  <p className="text-xl font-bold text-text-primary">
+                    {startProcessName}
+                    {(() => {
+                      const mp = masterProcesses.find(m => m.name === startProcessName || (selectedJob?.process_id && m.id === selectedJob.process_id));
+                      return mp?.description ? <span className="ml-2 text-base font-normal text-text-secondary">({mp.description})</span> : null;
+                    })()}
+                  </p>
                 </div>
               ) : (
                 /* 신규 임의 공정인 경우: 사내/외주 선택 및 공정 드롭다운 */
@@ -461,7 +485,9 @@ export const ProductionScanModal: React.FC<ProductionScanModalProps> = ({ barcod
                       {masterProcesses
                         .filter(mp => startProcessType === 'OUTSOURCE' ? mp.is_outsource : !mp.is_outsource)
                         .map(mp => (
-                          <option key={mp.id} value={mp.name}>{mp.name}</option>
+                          <option key={mp.id} value={mp.name}>
+                            {mp.name}{mp.description ? ` (${mp.description})` : ''}
+                          </option>
                         ))}
                     </select>
                   </div>
@@ -537,7 +563,13 @@ export const ProductionScanModal: React.FC<ProductionScanModalProps> = ({ barcod
                   <div className="p-4 bg-brand-500/10 border border-brand-500/30 rounded-lg flex items-center justify-between">
                     <div>
                       <p className="text-sm text-text-secondary mb-1">설계된 다음 대기 공정</p>
-                      <p className="text-lg font-bold text-brand-400">{nextPlannedLog.process_name}</p>
+                      <p className="text-lg font-bold text-brand-400">
+                        {nextPlannedLog.process_name}
+                        {(() => {
+                          const mp = masterProcesses.find(m => m.name === nextPlannedLog.process_name || (nextPlannedLog.process_id && m.id === nextPlannedLog.process_id));
+                          return mp?.description ? <span className="ml-2 text-sm font-normal text-text-secondary">({mp.description})</span> : null;
+                        })()}
+                      </p>
                     </div>
                     <ArrowRight className="text-brand-500" />
                   </div>
@@ -572,7 +604,9 @@ export const ProductionScanModal: React.FC<ProductionScanModalProps> = ({ barcod
                             {masterProcesses
                               .filter(mp => nextStep === 'OUTSOURCE' ? mp.is_outsource : !mp.is_outsource)
                               .map(mp => (
-                                <option key={mp.id} value={mp.name}>{mp.name}</option>
+                                <option key={mp.id} value={mp.name}>
+                                  {mp.name}{mp.description ? ` (${mp.description})` : ''}
+                                </option>
                               ))}
                           </select>
                         </div>

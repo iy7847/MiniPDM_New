@@ -133,7 +133,7 @@ export const calculateEstimate = (params: EstimateCalculationsParams): EstimateC
     // 1. 가공 치수 산출 (여유 기장 반영 혹은 사용자 수동 입력치 우선)
     const raw_w = raw_w_override && raw_w_override > 0 ? raw_w_override : spec_w + margin_w;
     const raw_d = raw_d_override && raw_d_override > 0 ? raw_d_override : spec_d + margin_d;
-    const raw_h = raw_h_override && raw_h_override > 0 ? raw_h_override : spec_h + margin_h;
+    const raw_h = shape === 'round' ? 0 : (raw_h_override && raw_h_override > 0 ? raw_h_override : spec_h + margin_h);
 
     // 2. 중량 산출 (사각 / 원형)
     let weight = 0;

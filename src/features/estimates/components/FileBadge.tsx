@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { FileText, Box, ExternalLink, X } from 'lucide-react';
 import { Badge } from '../../../design-system/Badge';
 import { toast } from '../../../shared/stores/useToastStore';
+import { useCadViewerStore } from '../../../shared/stores/useCadViewerStore';
 
 interface FileBadgeProps {
   type: '2D' | '3D';
@@ -20,8 +21,19 @@ export const FileBadge: React.FC<FileBadgeProps> = ({ type, count, files, onFile
   const popoverRef = useRef<HTMLDivElement>(null);
 
   const openFile = async (file: any) => {
+    // 1. 상위 컴포넌트에서 전달된 onFileClick 핸들러가 있으면 최우선으로 호출
     if (onFileClick) {
       onFileClick(file);
+      setIsOpen(false);
+      return;
+    }
+
+    const fileName = (file.name || file.file_name || '').toLowerCase();
+    const isStep = fileName.endsWith('.stp') || fileName.endsWith('.step');
+
+    // 2. 3D STEP/STP 파일인 경우 전역 3D CAD 뷰어로 열람
+    if (type === '3D' && isStep) {
+      await useCadViewerStore.getState().openCadViewer(file);
       setIsOpen(false);
       return;
     }

@@ -22,6 +22,7 @@ export function useStickySearchParams(
   const [isReady, setIsReady] = useState(false);
   const defaultInitRef = useRef(defaultInit);
   const isInitializedRef = useRef(false);
+  const initialPathRef = useRef(location.pathname);
 
   // 초기 마운트 시 파라미터 복원 또는 기본값 적용 (1회만 안전하게 실행)
   useEffect(() => {
@@ -64,21 +65,26 @@ export function useStickySearchParams(
       cleared: currentString === '',
       params: currentString
     };
-    sessionStorage.setItem(storageKey, JSON.stringify(newState));
+    if (location.pathname === initialPathRef.current) {
+      sessionStorage.setItem(storageKey, JSON.stringify(newState));
+    }
     setIsReady(true);
     isInitializedRef.current = true;
-  }, [searchParams, setSearchParams, storageKey]);
+  }, [searchParams, setSearchParams, storageKey, location.pathname]);
 
-  // searchParams 변경 시 세션스토리지 동기화 (초기화 완료 후)
+  // searchParams 변경 시 세션스토리지 동기화 (초기화 완료 후, 현재 페이지 주소와 일치할 때만 저장)
   useEffect(() => {
     if (!isInitializedRef.current) return;
+    // [중요] Race Condition 방지: 페이지를 벗어날 때 unmount 직전 searchParams가 비워지며 기존 세션을 초기화하는 버그 방어
+    if (location.pathname !== initialPathRef.current) return;
+
     const currentString = searchParams.toString();
     const newState: StickyState = {
       cleared: currentString === '',
       params: currentString
     };
     sessionStorage.setItem(storageKey, JSON.stringify(newState));
-  }, [searchParams, storageKey]);
+  }, [searchParams, storageKey, location.pathname]);
 
   // 파라미터 변경 함수 래퍼 (변경 시 sessionStorage에도 동시 저장)
   const setStickySearchParams = (
@@ -89,12 +95,14 @@ export function useStickySearchParams(
       const nextParamsObj = typeof nextInit === 'function' ? nextInit(prev) : nextInit;
       const newParams = new URLSearchParams(nextParamsObj as any);
       
-      const currentString = newParams.toString();
-      const newState: StickyState = {
-        cleared: currentString === '',
-        params: currentString
-      };
-      sessionStorage.setItem(storageKey, JSON.stringify(newState));
+      if (location.pathname === initialPathRef.current) {
+        const currentString = newParams.toString();
+        const newState: StickyState = {
+          cleared: currentString === '',
+          params: currentString
+        };
+        sessionStorage.setItem(storageKey, JSON.stringify(newState));
+      }
       
       return newParams;
     }, navigateOptions);

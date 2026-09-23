@@ -80,8 +80,8 @@ const STATUS_MAP: Record<StatusBadgeDomain, Record<string, StatusConfig>> = {
     DELAYED: { label: '지연', variant: 'danger' },
   },
   process: {
-    OUTSOURCE: { label: '외주 공정', variant: 'primary' },
-    true: { label: '외주 공정', variant: 'primary' },
+    OUTSOURCE: { label: '외주 공정', variant: 'warning' },
+    true: { label: '외주 공정', variant: 'warning' },
     IN_HOUSE: { label: '사내 공정', variant: 'default' },
     false: { label: '사내 공정', variant: 'default' },
   },

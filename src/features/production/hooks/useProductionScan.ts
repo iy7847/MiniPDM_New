@@ -26,6 +26,7 @@ export type MasterProcess = {
   name: string;
   is_outsource: boolean;
   type: 'process' | 'heat_treatment' | 'post_processing';
+  description?: string | null;
 };
 
 export const useProductionScan = () => {
@@ -80,16 +81,16 @@ export const useProductionScan = () => {
         { data: postData },
         { data: supplierData }
       ] = await Promise.all([
-        supabase.from('processes').select('id, name, is_outsource').order('name'),
+        supabase.from('processes').select('id, name, is_outsource, description').order('name'),
         supabase.from('heat_treatments').select('id, name').order('name'),
         supabase.from('post_processings').select('id, name').order('name'),
         supabase.from('clients').select('id, name').in('client_type', ['SUPPLIER', 'BOTH', '매입/외주처', '매출/매입처', '매입처']).order('name')
       ]);
 
       const masterProcesses: MasterProcess[] = [
-        ...(procData || []).map(p => ({ id: p.id, name: p.name, is_outsource: p.is_outsource, type: 'process' as const })),
-        ...(heatData || []).map(h => ({ id: h.id, name: h.name, is_outsource: true, type: 'heat_treatment' as const })),
-        ...(postData || []).map(p => ({ id: p.id, name: p.name, is_outsource: true, type: 'post_processing' as const })),
+        ...(procData || []).map(p => ({ id: p.id, name: p.name, is_outsource: p.is_outsource, description: p.description || null, type: 'process' as const })),
+        ...(heatData || []).map(h => ({ id: h.id, name: h.name, is_outsource: true, description: null, type: 'heat_treatment' as const })),
+        ...(postData || []).map(p => ({ id: p.id, name: p.name, is_outsource: true, description: null, type: 'post_processing' as const })),
       ];
 
       return {

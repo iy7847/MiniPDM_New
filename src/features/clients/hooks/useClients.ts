@@ -52,13 +52,25 @@ export function useClients() {
     return null;
   };
 
-  const saveClient = async (companyId: string, formData: ClientFormData, editId?: string) => {
-    const errorMsg = await checkDuplicate(companyId, formData.name, formData.biz_num, editId, formData.is_foreign);
+  const sanitizeClientData = (data: ClientFormData) => {
+    return {
+      ...data,
+      name: data.name?.trim() || '',
+      biz_num: data.biz_num?.trim() || null,
+      manager_name: data.manager_name?.trim() || null,
+      manager_phone: data.manager_phone?.trim() || null,
+      manager_email: data.manager_email?.trim() || null,
+    };
+  };
+
+  const saveClient = async (companyId: string, rawFormData: ClientFormData, editId?: string) => {
+    const formData = sanitizeClientData(rawFormData);
+    const errorMsg = await checkDuplicate(companyId, formData.name, formData.biz_num || '', editId, formData.is_foreign);
     if (errorMsg) throw new Error(errorMsg);
 
     const payload = {
       ...formData,
-      ...(editId ? { updated_at: new Date().toISOString() } : { company_id })
+      ...(editId ? { updated_at: new Date().toISOString() } : { company_id: companyId })
     };
 
     if (editId) {

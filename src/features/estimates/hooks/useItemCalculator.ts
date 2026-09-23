@@ -59,7 +59,9 @@ export const useItemCalculator = (params: ItemCalculatorParams) => {
     const sub_total = base_cost + profit;
 
     // Apply rounding
-    const unit_price = Math.ceil(sub_total / rounding_unit) * rounding_unit;
+    const unit_price = rounding_unit && rounding_unit > 0
+      ? Math.ceil(sub_total / rounding_unit) * rounding_unit
+      : Math.round(sub_total);
 
     const total_price = unit_price * qty;
 

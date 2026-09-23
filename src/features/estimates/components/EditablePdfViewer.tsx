@@ -107,9 +107,8 @@ export function EditablePdfViewer({ file, onOcrResult, onSaveMaskedPdf, isViewer
     
     const newFile = await exportSinglePdfWithMask(file, masks, RENDER_WIDTH, setIsProcessing);
     if (newFile && onSaveMaskedPdf) {
-      onSaveMaskedPdf(newFile);
       setMasks([]); // 저장 후 마스크 초기화
-      toast.success('마스킹된 PDF가 저장되었습니다.');
+      onSaveMaskedPdf(newFile);
     }
   };
 

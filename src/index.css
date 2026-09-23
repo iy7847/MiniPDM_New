@@ -5,9 +5,47 @@
 @tailwind utilities;
 
 @layer base {
+  * {
+    -webkit-user-drag: none;
+  }
+
   body {
     background-color: theme('colors.bg.base');
     color: theme('colors.text.primary');
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* 입력 필드, 텍스트 영역, 데이터 시트 및 텍스트 선택 지정 영역은 복사/선택 허용 */
+  input,
+  textarea,
+  [contenteditable="true"],
+  .select-text,
+  .selectable,
+  .dsg-container,
+  .dsg-cell {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+
+  /* 🚀 데스크탑 전용 세련된 슬림 다크 스크롤바 */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #30363D;
+    border-radius: 9999px;
+    transition: background-color 0.2s ease;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #484F58;
+  }
+  ::-webkit-scrollbar-corner {
+    background: transparent;
   }
 
   /* react-datasheet-grid theme overrides */

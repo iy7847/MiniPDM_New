@@ -24,6 +24,49 @@ interface ImportItemsModalProps {
   companyInfo?: any;
 }
 
+export const parseSpecDimensions = (specStr?: string) => {
+  if (!specStr) return { spec_w: 0, spec_d: 0, spec_h: 0, shape: 'PLATE' as const };
+  const clean = specStr.trim();
+  
+  // 1. 원형 봉재 패턴 (예: Ø50*100, D50x100, 50Ф*100, dia 50 * 100)
+  const roundMatch = clean.match(/(?:[ØøФфDd]|dia|DIA)\s*([0-9.]+)\s*[*xX×/]\s*([0-9.]+)/i)
+    || clean.match(/([0-9.]+)\s*(?:[ØøФфDd]|dia|DIA)\s*[*xX×/]\s*([0-9.]+)/i);
+  if (roundMatch) {
+    const dia = parseFloat(roundMatch[1]) || 0;
+    const len = parseFloat(roundMatch[2]) || 0;
+    return {
+      spec_w: dia,
+      spec_d: len,
+      spec_h: 0,
+      shape: 'ROUND' as const
+    };
+  }
+
+  // 2. 3단 치수 사각판재/블록 (예: 100*50*20, 100 x 50 x 20T, 100*50*20t)
+  const threeMatch = clean.match(/([0-9.]+)\s*[*xX×/]\s*([0-9.]+)\s*[*xX×/]\s*([0-9.]+)/);
+  if (threeMatch) {
+    return {
+      spec_w: parseFloat(threeMatch[1]) || 0,
+      spec_d: parseFloat(threeMatch[2]) || 0,
+      spec_h: parseFloat(threeMatch[3]) || 0,
+      shape: 'PLATE' as const
+    };
+  }
+
+  // 3. 2단 치수 (예: 100*50, 100 x 50)
+  const twoMatch = clean.match(/([0-9.]+)\s*[*xX×/]\s*([0-9.]+)/);
+  if (twoMatch) {
+    return {
+      spec_w: parseFloat(twoMatch[1]) || 0,
+      spec_d: parseFloat(twoMatch[2]) || 0,
+      spec_h: 0,
+      shape: 'PLATE' as const
+    };
+  }
+
+  return { spec_w: 0, spec_d: 0, spec_h: 0, shape: 'PLATE' as const };
+};
+
 export function ImportItemsModal({ isOpen, onClose, onConfirm, initialRawRows, companyInfo }: ImportItemsModalProps) {
   const [previewItems, setPreviewItems] = useState<ImportedItem[]>([]);
   const [rawRows, setRawRows] = useState<string[][]>([]);
@@ -135,17 +178,27 @@ export function ImportItemsModal({ isOpen, onClose, onConfirm, initialRawRows, c
   };
 
   const handleConfirm = () => {
-    const convertedItems: Partial<EstimateItem>[] = previewItems.map(item => ({
-      ...createInitialItemForm(companyInfo),
-      id: crypto.randomUUID(),
-      part_name: item.part_name,
-      part_no: item.part_no,
-      qty: item.qty,
-      unit_price: item.unit_price,
-      supply_price: item.qty * item.unit_price,
-      original_material_name: item.original_material_name || item.material_text || item.spec,
-      note: [item.spec, item.post_process_text, item.heat_treatment_text].filter(Boolean).join(' / ')
-    }));
+    const convertedItems: Partial<EstimateItem>[] = previewItems.map(item => {
+      const parsedDims = parseSpecDimensions(item.spec);
+      return {
+        ...createInitialItemForm(companyInfo),
+        id: crypto.randomUUID(),
+        part_name: item.part_name,
+        part_no: item.part_no,
+        shape: parsedDims.shape,
+        spec_w: parsedDims.spec_w,
+        spec_d: parsedDims.spec_d,
+        spec_h: parsedDims.spec_h,
+        raw_w: parsedDims.spec_w > 0 ? parsedDims.spec_w + 5 : 0,
+        raw_d: parsedDims.spec_d > 0 ? parsedDims.spec_d + 5 : 0,
+        raw_h: parsedDims.shape === 'PLATE' && parsedDims.spec_h > 0 ? parsedDims.spec_h + 5 : 0,
+        qty: item.qty,
+        unit_price: item.unit_price,
+        supply_price: item.qty * item.unit_price,
+        original_material_name: item.original_material_name || item.material_text || '',
+        note: [item.spec, item.post_process_text, item.heat_treatment_text].filter(Boolean).join(' / ')
+      };
+    });
 
     onConfirm(convertedItems);
     onClose();

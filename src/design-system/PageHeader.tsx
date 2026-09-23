@@ -47,7 +47,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   return (
     <div className={`flex flex-col gap-4 ${className}`}>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-start sm:items-center gap-3 min-w-0">
+        <div className="flex items-start sm:items-center gap-3 shrink-0">
           {renderIcon()}
           <div className="min-w-0">
             <div className="flex items-center gap-2.5 flex-wrap">

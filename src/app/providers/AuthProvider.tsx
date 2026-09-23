@@ -62,10 +62,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return null;
     }
   });
-  // 세션이 존재하면 첫 프레임부터 loading: false로 대시보드 즉시 진입 (/login 튕김 영구 원천 방지)
+  // 초기 저장소에 이미 세션이 있으면 즉시 loading: false (0ms 대시보드 직행),
+  // 세션이 아직 로드되지 않았으면 Supabase의 비동기 getSession() 결과 확인 시까지 loading: true 유지
   const [loading, setLoading] = useState<boolean>(() => {
-    if (initialSession?.user) return false;
-    return false;
+    return !initialSession?.user;
   });
 
   const [isProfileLoaded, setIsProfileLoaded] = useState<boolean>(() => {
@@ -95,6 +95,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const userProfile = profileData as UserProfile;
       setProfile(userProfile);
       appStorage.setItem(CACHED_PROFILE_KEY, JSON.stringify(userProfile));
+
+      // 회사 도면 루트 경로 동기화 (로컬 파일 뷰어/3D 도면 호환성)
+      if (userProfile.company_id) {
+        supabase
+          .from('companies')
+          .select('root_path')
+          .eq('id', userProfile.company_id)
+          .maybeSingle()
+          .then(({ data: companyData }) => {
+            if (companyData?.root_path) {
+              localStorage.setItem('company_root_path', companyData.root_path);
+            }
+          })
+          .catch(() => {});
+      }
 
       if (profileData.group_id) {
         const { data: groupData } = await supabase
@@ -130,10 +145,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     let isMounted = true;
 
+    // 0. 네트워크 지연/세션 락 방지용 하드 가드 (최대 2초 내 무조건 스피너 해제)
+    const hardTimeout = setTimeout(() => {
+      if (isMounted) {
+        setLoading(false);
+      }
+    }, 2000);
+
     // 1. 초기 세션 조회 (안전한 타임아웃 가드 적용)
     const sessionPromise = supabase.auth.getSession();
     const timeoutPromise = new Promise<{ data: { session: null } }>((resolve) =>
-      setTimeout(() => resolve({ data: { session: null } }), 3000)
+      setTimeout(() => resolve({ data: { session: null } }), 2000)
     );
 
     Promise.race([sessionPromise, timeoutPromise]).then(async ({ data: { session } }) => {
@@ -173,16 +195,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await fetchProfileAndGroup(currentSession.user.id);
       } else if (event === 'SIGNED_OUT') {
         // 명시적 로그아웃 시에만 캐시 영구 삭제
-        setProfile(null);
-        setGroup(null);
         appStorage.removeItem(CACHED_PROFILE_KEY);
         appStorage.removeItem(CACHED_GROUP_KEY);
+        setProfile(null);
+        setGroup(null);
+        setLoading(false);
+      } else {
         setLoading(false);
       }
     });
 
     return () => {
       isMounted = false;
+      clearTimeout(hardTimeout);
       subscription.unsubscribe();
     };
   }, [fetchProfileAndGroup]);

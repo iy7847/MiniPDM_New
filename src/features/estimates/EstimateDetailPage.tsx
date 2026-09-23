@@ -121,9 +121,18 @@ export const EstimateDetailPage: React.FC = () => {
       toast.error('필수 정보가 누락되었습니다.');
       return;
     }
+
+    if (!estimate.client_id) {
+      toast.error('거래처가 지정되지 않은 견적서는 수주로 전환할 수 없습니다. 거래처를 먼저 지정해주세요.');
+      return;
+    }
+
+    if (selectedItemIds.some(id => !id || id === 'NEW-PART' || String(id).startsWith('temp-'))) {
+      toast.error('저장되지 않은 임시 품목이 포함되어 있습니다. 견적서를 저장한 후 다시 시도해주세요.');
+      return;
+    }
     
     try {
-      
       // 1. RPC 호출 (반환값: JSONB)
       const { data: responseData, error } = await supabase.rpc('convert_estimate_to_order', {
         p_estimate_id: estimate.id,
@@ -234,6 +243,23 @@ export const EstimateDetailPage: React.FC = () => {
     return <div className="p-6 text-text-secondary">데이터를 불러오는 중입니다...</div>;
   }
 
+  const handleOpenOrderModal = async () => {
+    if (isNew || !estimate?.id) {
+      toast.warning('신규 견적서입니다. 먼저 저장한 후 수주 전환을 진행해주세요.');
+      return;
+    }
+    if (!estimate.client_id) {
+      toast.error('거래처가 지정되지 않았습니다. 거래처를 먼저 선택해주세요.');
+      return;
+    }
+    const hasTempItems = items.some(item => !item.id || item.id === 'NEW-PART' || String(item.id).startsWith('temp-'));
+    if (hasTempItems) {
+      toast.info('미저장 품목이 있어 견적서를 자동 저장합니다.');
+      await handleSave();
+    }
+    modalsRef.current?.openOrderModal();
+  };
+
   return (
     <div 
       className="flex flex-col h-full bg-bg-base animate-in fade-in relative"
@@ -262,7 +288,7 @@ export const EstimateDetailPage: React.FC = () => {
           onNavigateBack={() => navigate('/estimates')}
           onStatusChange={handleStatusChange}
           onSubmitEstimate={handleSubmitEstimate}
-          onOpenOrderModal={() => modalsRef.current?.openOrderModal()}
+          onOpenOrderModal={handleOpenOrderModal}
           onOpenPreviewModal={() => modalsRef.current?.openPreviewModal()}
           onSave={handleSave}
         />
@@ -379,6 +405,19 @@ export const EstimateDetailPage: React.FC = () => {
               }}
               onRemoveSingleFile={handleRemoveSingleFile}
               onRemoveMultipleFiles={handleRemoveMultipleFiles}
+              onSaveFiles={async (itemId: string, filesToSave: File[]) => {
+                setItems(prev => prev.map(it => {
+                  if (it.id === itemId || `temp-${it.part_no || it.part_name}` === itemId) {
+                    const existingNames = new Set(filesToSave.map(f => f.name));
+                    const remainingTemp = (it.tempFiles || []).filter((f: any) => !existingNames.has(f.name));
+                    return {
+                      ...it,
+                      tempFiles: [...remainingTemp, ...filesToSave]
+                    };
+                  }
+                  return it;
+                }));
+              }}
               isReadOnly={isLocked}
               companyInfo={metadata?.companyInfo}
               metadata={metadata}

@@ -26,7 +26,13 @@ export function ProcessDesignModal({ selectedItems, onClose, onSuccess }: Props)
   const [saving, setSaving] = useState(false);
 
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
-  const [routingItems, setRoutingItems] = useState<{id: string, process_id: string, process_name: string, is_outsource: boolean}[]>([]);
+  const [routingItems, setRoutingItems] = useState<{
+    id: string;
+    process_id: string;
+    process_name: string;
+    description?: string | null;
+    is_outsource: boolean;
+  }[]>([]);
 
   useEffect(() => {
     async function init() {
@@ -54,11 +60,12 @@ export function ProcessDesignModal({ selectedItems, onClose, onSuccess }: Props)
               // Filter out the automatic '출하' process since it gets appended on save
               const userLogs = logs.filter(l => l.process_name !== '출하' || l.process_id !== null);
               const loadedItems = userLogs.map(l => {
-                const processMaster = p.find(master => master.id === l.process_id);
+                const processMaster = p.find(master => master.id === l.process_id || master.name === l.process_name);
                 return {
                   id: Math.random().toString(),
                   process_id: l.process_id || '',
                   process_name: l.process_name,
+                  description: processMaster?.description || null,
                   is_outsource: processMaster ? processMaster.is_outsource : false
                 };
               });
@@ -83,12 +90,16 @@ export function ProcessDesignModal({ selectedItems, onClose, onSuccess }: Props)
     if (tid) {
       const template = templates.find(t => t.id === tid);
       if (template && template.items) {
-        const newItems = template.items.map(ti => ({
-          id: Math.random().toString(),
-          process_id: ti.process_id,
-          process_name: ti.processes?.name || '알수없음',
-          is_outsource: ti.processes?.is_outsource || false
-        }));
+        const newItems = template.items.map(ti => {
+          const proc = processes.find(p => p.id === ti.process_id);
+          return {
+            id: Math.random().toString(),
+            process_id: ti.process_id,
+            process_name: ti.processes?.name || proc?.name || '알수없음',
+            description: ti.processes?.description || proc?.description || null,
+            is_outsource: ti.processes?.is_outsource || proc?.is_outsource || false
+          };
+        });
         setRoutingItems(newItems);
       }
     } else {
@@ -105,6 +116,7 @@ export function ProcessDesignModal({ selectedItems, onClose, onSuccess }: Props)
         id: Math.random().toString(),
         process_id: p.id,
         process_name: p.name,
+        description: p.description || null,
         is_outsource: p.is_outsource
       }]);
     }
@@ -227,19 +239,21 @@ export function ProcessDesignModal({ selectedItems, onClose, onSuccess }: Props)
             <div className="flex justify-between items-center bg-bg-surface p-3 border-b border-border-default shrink-0">
               <span className="font-bold text-sm text-text-primary">공정 로드맵 (순서 지정)</span>
               <select 
-                className="bg-bg-base border border-border-default text-text-primary rounded text-sm p-1.5 focus:border-brand-500 outline-none"
+                className="bg-bg-base border border-border-default text-text-primary rounded text-sm p-1.5 focus:border-brand-500 outline-none max-w-[320px]"
                 onChange={handleAddProcess}
               >
                 <option value="">+ 공정 추가</option>
                 {processes.map(p => (
-                  <option key={p.id} value={p.id}>{p.name} {p.is_outsource ? '(외주)' : ''}</option>
+                  <option key={p.id} value={p.id}>
+                    {p.is_outsource ? '⚡ [외주] ' : '[사내] '}{p.name}{p.description ? ` (${p.description})` : ''}
+                  </option>
                 ))}
               </select>
             </div>
             
             <div className="flex-1 overflow-auto p-4">
               {routingItems.length === 0 ? (
-                <div className="h-full flex items-center justify-center text-text-secondary text-sm">
+                <div className="flex h-full items-center justify-center text-text-secondary text-sm">
                   적용할 라우팅 템플릿을 선택하거나 공정을 수동으로 추가하세요.
                 </div>
               ) : (
@@ -257,19 +271,36 @@ export function ProcessDesignModal({ selectedItems, onClose, onSuccess }: Props)
                               <div
                                 ref={provided.innerRef}
                                 {...provided.draggableProps}
-                                className="flex items-center gap-3 p-3 bg-bg-elevated border border-border-default rounded-md shadow-sm group"
+                                className={`flex items-center gap-3 p-3 rounded-md shadow-sm group border transition-all ${
+                                  item.is_outsource 
+                                    ? 'bg-amber-500/10 border-amber-500/40 hover:border-amber-500/60' 
+                                    : 'bg-bg-elevated border-border-default hover:border-brand-500/50'
+                                }`}
                               >
-                                <div {...provided.dragHandleProps} className="text-text-tertiary cursor-grab hover:text-brand-500">
+                                <div {...provided.dragHandleProps} className={`cursor-grab ${item.is_outsource ? 'text-amber-400/60 hover:text-amber-400' : 'text-text-tertiary hover:text-brand-500'}`}>
                                   <GripVertical size={18} />
                                 </div>
-                                <div className="w-6 h-6 rounded-full bg-brand-500/20 text-brand-500 flex items-center justify-center text-xs font-bold shrink-0">
+                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                                  item.is_outsource 
+                                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' 
+                                    : 'bg-brand-500/20 text-brand-400 border border-brand-500/30'
+                                }`}>
                                   {index + 1}
                                 </div>
-                                <div className="flex-1 font-bold text-text-primary text-base">
-                                  {item.process_name}
+                                <div className="flex-1 text-base flex items-baseline gap-2 flex-wrap">
+                                  <span className={`font-bold ${item.is_outsource ? 'text-amber-300' : 'text-text-primary'}`}>{item.process_name}</span>
+                                  {item.description && (
+                                    <span className={`text-sm font-normal ${item.is_outsource ? 'text-amber-300/70' : 'text-text-secondary'}`}>{item.description}</span>
+                                  )}
                                 </div>
-                                {item.is_outsource && (
-                                  <span className="text-[10px] bg-brand-500/10 text-brand-500 px-1.5 py-0.5 rounded border border-brand-500/30">외주 현장발주 대기</span>
+                                {item.is_outsource ? (
+                                  <span className="text-xs font-semibold bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded border border-amber-500/40 flex items-center gap-1">
+                                    <Truck size={12} /> 외주
+                                  </span>
+                                ) : (
+                                  <span className="text-xs font-medium bg-brand-500/10 text-brand-400 px-2 py-0.5 rounded border border-brand-500/20">
+                                    사내
+                                  </span>
                                 )}
                                 <button 
                                   className="text-text-tertiary hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"

@@ -184,7 +184,27 @@ export async function createDirectOrder(orderData: {
       .eq('company_id', orderData.companyId)
       .gte('created_at', startOfMonth);
       
-    poNo = buildOrderPoNo((count || 0) + 1, targetDate);
+    let candidateSeq = (count || 0) + 1;
+    let loopGuard = 0;
+    while (loopGuard < 100) {
+      const candidatePo = buildOrderPoNo(candidateSeq, targetDate);
+      const { data: existing } = await supabase
+        .from('orders')
+        .select('id')
+        .eq('company_id', orderData.companyId)
+        .or(`po_no.eq.${candidatePo},order_number.eq.${candidatePo}`)
+        .maybeSingle();
+
+      if (!existing) {
+        poNo = candidatePo;
+        break;
+      }
+      candidateSeq++;
+      loopGuard++;
+    }
+    if (!poNo) {
+      poNo = buildOrderPoNo(candidateSeq, targetDate);
+    }
   }
 
   const { data, error } = await supabase

@@ -12,6 +12,7 @@ export interface ProcessLog {
   sequence_no?: number;
   is_planned?: boolean;
   is_outsource?: boolean;
+  description?: string | null;
 }
 
 export interface ShopFloorPart {
@@ -54,14 +55,15 @@ export function useShopFloor() {
       if (error) throw error;
       if (!data) throw new Error('품목을 찾을 수 없습니다.');
 
-      // 외주 여부 확인을 위해 processes 테이블 조회
-      const { data: processesData } = await supabase.from('processes').select('id, name, is_outsource');
+      // 외주 여부 및 설명 확인을 위해 processes 테이블 조회
+      const { data: processesData } = await supabase.from('processes').select('id, name, is_outsource, description');
       
       const sortedLogs = (data.process_logs || [])
         .map((log: any) => {
           const proc = processesData?.find(p => p.name === log.process_name);
           return {
             ...log,
+            description: proc?.description || null,
             is_outsource: log.process_type === 'OUTSOURCE' || (proc?.is_outsource ?? false)
           };
         })

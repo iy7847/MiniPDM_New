@@ -158,7 +158,7 @@ export function SmartPdfImporter({ isOpen, onClose, onImportComplete, companyInf
     exportSplitFilesToLocal(file, ocrResults, masks, RENDER_WIDTH, setIsProcessing);
   };
 
-  const validForEstimateCount = ocrResults.filter(r => !r.skip && r.part_no).length;
+  const validForEstimateCount = ocrResults.filter(r => !r.skip).length;
   const validForSplitCount = ocrResults.filter(r => !r.skip).length;
 
   if (!isOpen) return null;

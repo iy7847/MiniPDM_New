@@ -120,20 +120,27 @@ async function main() {
     }
   }
 
-  // 4. 공식 다운로드 웹페이지(Landing Page) 업로드
+  // 4. 공식 다운로드 웹페이지(Landing Page) 업로드 (버전 자동 동기화)
   const landingHtmlPath = path.join(__dirname, 'landing', 'index.html');
   if (fs.existsSync(landingHtmlPath)) {
     console.log('\n📄 KEP 공식 다운로드 랜딩 웹페이지 업로드 중...');
+    let htmlContent = fs.readFileSync(landingHtmlPath, 'utf8');
+    // 버전 번호 및 다운로드 파일 링크 자동 동기화
+    htmlContent = htmlContent.replace(/MiniPDM%20Setup%20[\d.]+\.exe/g, `MiniPDM%20Setup%20${currentVersion}.exe`);
+    htmlContent = htmlContent.replace(/\(v[\d.]+\)/g, `(v${currentVersion})`);
+    htmlContent = htmlContent.replace(/공식 정식 릴리즈 v[\d.]+/g, `공식 정식 릴리즈 v${currentVersion}`);
+
+    const landingBuffer = Buffer.from(htmlContent, 'utf8');
     const landingKeys = ['index.html', 'updates/index.html', 'download/index.html'];
     
     for (const key of landingKeys) {
       try {
-        const landingStream = fs.createReadStream(landingHtmlPath);
         await s3.send(new PutObjectCommand({
           Bucket: bucketName,
           Key: key,
-          Body: landingStream,
+          Body: landingBuffer,
           ContentType: 'text/html; charset=utf-8',
+          ContentLength: landingBuffer.length,
         }));
         console.log(`✅ 랜딩 페이지 배포: ${publicUrl}/${key}`);
       } catch (err) {

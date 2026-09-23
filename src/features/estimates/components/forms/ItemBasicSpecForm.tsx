@@ -140,7 +140,8 @@ export const ItemBasicSpecForm: React.FC<ItemBasicSpecFormProps> = ({
           </>
         ) : (
           <>
-            <div><NumberInput label="L (길이)" value={itemForm.spec_d} onChange={v => handleSpecChange('spec_d', v)} /></div>
+            <div><NumberInput label="Ø (외경)" value={itemForm.spec_w || 0} onChange={v => handleSpecChange('spec_w', v || 0)} disabled={disabled} /></div>
+            <div><NumberInput label="L (길이)" value={itemForm.spec_d || 0} onChange={v => handleSpecChange('spec_d', v || 0)} disabled={disabled} /></div>
             <div className="opacity-50"><NumberInput label="-" value={0} onChange={() => {}} disabled /></div>
           </>
         )}

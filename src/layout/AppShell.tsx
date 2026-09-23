@@ -7,6 +7,7 @@ import { NotificationDrawer } from '../features/notifications/NotificationDrawer
 import { GlobalScanner } from './GlobalScanner';
 import { LicenseBanner } from './components/LicenseBanner';
 import { LicenseBlockedOverlay } from './components/LicenseBlockedOverlay';
+import { GlobalCadViewer } from '../shared/components/cad-viewer';
 
 export const AppShell: React.FC = () => {
   return (
@@ -23,6 +24,7 @@ export const AppShell: React.FC = () => {
       <NotificationDrawer />
       <GlobalScanner />
       <LicenseBlockedOverlay />
+      <GlobalCadViewer />
     </div>
   );
 };

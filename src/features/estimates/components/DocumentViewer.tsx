@@ -4,6 +4,7 @@ import { supabase } from '../../../shared/services/supabase';
 import { EXT_2D, EXT_3D } from '../utils/fileMatching';
 import { toast } from '../../../shared/stores/useToastStore';
 import { EditablePdfViewer } from './EditablePdfViewer';
+import { CadViewer, type AppliedDimensions } from '../../../shared/components/cad-viewer';
 
 interface DocumentViewerProps {
   files: any[];        // DB에 저장된 파일 목록 (file_path, file_name, file_type)
@@ -12,6 +13,7 @@ interface DocumentViewerProps {
   onRemoveTempFile?: (index: number) => void;   // 임시 파일 제거 콜백
   onOcrResult?: (text: string, mode: 'part_no' | 'part_name' | 'material') => void;
   onSaveMaskedPdf?: (fileId: string | null, tempIndex: number | null, newFile: File) => void;
+  onApplyDimensions?: (dimensions: AppliedDimensions) => void;
   isReadOnly?: boolean;
 }
 
@@ -22,6 +24,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   onRemoveTempFile,
   onOcrResult,
   onSaveMaskedPdf,
+  onApplyDimensions,
   isReadOnly = false
 }) => {
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
@@ -190,8 +193,11 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
     const ext = fileName.split('.').pop()?.toLowerCase();
     if (ext === 'pdf') fileType = 'application/pdf';
     else if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '')) fileType = 'image/' + ext;
+    else if (ext === 'step' || ext === 'stp') fileType = 'model/step';
   }
 
+  const fileExt = fileName.split('.').pop()?.toLowerCase() || '';
+  const isCad3D = fileExt === 'step' || fileExt === 'stp';
   const isPdf = fileType === 'application/pdf';
   const isImage = fileType.startsWith('image/');
 
@@ -255,6 +261,15 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
             <p className="font-bold mb-1">파일 열기 실패</p>
             <p className="text-sm opacity-80">{dbFileError}</p>
           </div>
+        ) : isCad3D && (currentFileObj || fileUrl) ? (
+          <CadViewer
+            file={currentFileObj || fileUrl}
+            fileName={fileName}
+            isModal={false}
+            initialRenderMode="edges"
+            showDimensionsBanner={true}
+            onApplyDimensions={onApplyDimensions}
+          />
         ) : isPdf && currentFileObj ? (
           <EditablePdfViewer 
             file={currentFileObj} 

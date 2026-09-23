@@ -269,6 +269,7 @@
 | `token` | `uuid` | NO | gen_random_uuid() |
 | `invite_code` | `character varying` | YES | upper(SUBSTRING(md5((random())::text) FROM 1 FOR 6)) |
 | `role` | `text` | NO | NULL |
+| `group_id` | `uuid` | YES | NULL |
 | `status` | `text` | YES | 'pending'::text |
 | `expires_at` | `timestamp with time zone` | YES | (now() + '7 days'::interval) |
 | `created_at` | `timestamp with time zone` | YES | now() |
@@ -295,27 +296,30 @@
 |--------|------|----------|---------|
 | `id` | `uuid` | NO | gen_random_uuid() |
 | `order_item_id` | `uuid` | YES | NULL |
+| `supplier_id` | `uuid` | YES | NULL |
+| `supplier_name` | `text` | YES | NULL |
 | `material_name` | `text` | NO | NULL |
 | `spec` | `text` | YES | NULL |
 | `quantity` | `integer` | YES | 0 |
 | `weight` | `numeric` | YES | 0 |
 | `unit_price` | `numeric` | YES | 0 |
 | `total_price` | `numeric` | YES | 0 |
-| `supplier_id` | `uuid` | YES | NULL |
-| `supplier_name` | `text` | YES | NULL |
+| `actual_unit_price` | `numeric` | YES | NULL |
+| `actual_total_price` | `numeric` | YES | NULL |
+| `shape` | `text` | YES | NULL |
+| `estimated_price` | `numeric` | YES | 0 |
+| `po_no` | `text` | YES | NULL |
 | `order_date` | `date` | YES | NULL |
 | `expected_date` | `date` | YES | NULL |
 | `received_date` | `date` | YES | NULL |
+| `received_qty` | `integer` | YES | 0 |
 | `status` | `text` | YES | '발주대기'::text |
+| `notes` | `text` | YES | NULL |
 | `company_id` | `uuid` | NO | NULL |
 | `created_at` | `timestamp with time zone` | YES | now() |
 | `updated_at` | `timestamp with time zone` | YES | now() |
-| `received_qty` | `integer` | YES | 0 |
 | `read_at` | `timestamp with time zone` | YES | NULL |
 | `po_receipt_token` | `uuid` | YES | NULL |
-| `po_no` | `text` | YES | NULL |
-| `shape` | `text` | YES | NULL |
-| `estimated_price` | `numeric` | YES | 0 |
 |---|---|---|---|
 
 ## 📄 Table: `material_price_history`
@@ -459,37 +463,6 @@
 | `expected_date` | `date` | YES | NULL |
 | `received_date` | `date` | YES | NULL |
 | `outsource_type` | `character varying` | NO | 'NORMAL'::character varying |
-| `status` | `text` | YES | '발주대기'::text |
-| `notes` | `text` | YES | NULL |
-| `company_id` | `uuid` | NO | NULL |
-| `created_at` | `timestamp with time zone` | YES | now() |
-| `updated_at` | `timestamp with time zone` | YES | now() |
-| `received_qty` | `integer` | YES | 0 |
-| `read_at` | `timestamp with time zone` | YES | NULL |
-| `po_receipt_token` | `uuid` | YES | NULL |
-|---|---|---|---|
-
-## 📄 Table: `material_orders`
-
-| Column | Type | Nullable | Default |
-|--------|------|----------|---------|
-| `id` | `uuid` | NO | gen_random_uuid() |
-| `order_item_id` | `uuid` | YES | NULL |
-| `supplier_id` | `uuid` | YES | NULL |
-| `supplier_name` | `text` | YES | NULL |
-| `material_name` | `text` | YES | NULL |
-| `spec` | `text` | YES | NULL |
-| `quantity` | `integer` | YES | 0 |
-| `unit_price` | `numeric` | YES | 0 |
-| `total_price` | `numeric` | YES | 0 |
-| `actual_unit_price` | `numeric` | YES | NULL |
-| `actual_total_price` | `numeric` | YES | NULL |
-| `shape` | `text` | YES | NULL |
-| `estimated_price` | `numeric` | YES | 0 |
-| `po_no` | `text` | YES | NULL |
-| `order_date` | `date` | YES | NULL |
-| `expected_date` | `date` | YES | NULL |
-| `received_date` | `date` | YES | NULL |
 | `status` | `text` | YES | '발주대기'::text |
 | `notes` | `text` | YES | NULL |
 | `company_id` | `uuid` | NO | NULL |

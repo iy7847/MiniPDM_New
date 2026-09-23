@@ -100,8 +100,8 @@ export const ProductionProcessDetailModal: React.FC<ProductionProcessDetailModal
                       isCompleted 
                         ? 'border-success text-success' 
                         : isActive 
-                        ? 'border-brand-500 text-brand-400 ring-4 ring-brand-500/20' 
-                        : 'border-border-strong text-text-tertiary'
+                        ? (isOutsource ? 'border-orange-500 text-orange-400 ring-4 ring-orange-500/20' : 'border-brand-500 text-brand-400 ring-4 ring-brand-500/20')
+                        : (isOutsource ? 'border-orange-500/40 text-orange-400/80' : 'border-border-strong text-text-tertiary')
                     }`}>
                       {isCompleted ? (
                         <CheckCircle className="w-3.5 h-3.5" />
@@ -115,19 +115,22 @@ export const ProductionProcessDetailModal: React.FC<ProductionProcessDetailModal
                     {/* Step Card */}
                     <div className={`p-4 rounded-xl border transition-all ${
                       isActive 
-                        ? 'bg-brand-500/5 border-brand-500/40 shadow-sm' 
+                        ? (isOutsource ? 'bg-orange-500/10 border-orange-500/50 shadow-sm' : 'bg-brand-500/5 border-brand-500/40 shadow-sm')
                         : isCompleted
                         ? 'bg-bg-surface/60 border-border-default'
-                        : 'bg-bg-base border-border-subtle opacity-70'
+                        : (isOutsource ? 'bg-orange-500/5 border-orange-500/30' : 'bg-bg-base border-border-subtle opacity-70')
                     }`}>
                       <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-xs font-mono text-text-tertiary font-bold">#{idx + 1}</span>
-                          <span className="text-base font-bold text-text-primary">{log.process_name}</span>
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${
+                          <span className={`text-base font-bold ${isOutsource ? 'text-orange-300' : 'text-text-primary'}`}>{log.process_name}</span>
+                          {log.processes?.description && (
+                            <span className={`text-sm font-normal ${isOutsource ? 'text-orange-300/70' : 'text-text-secondary'}`}>{log.processes.description}</span>
+                          )}
+                          <span className={`text-xs px-2 py-0.5 rounded border font-semibold flex items-center gap-1 ${
                             isOutsource 
-                              ? 'bg-orange-500/10 text-orange-400 border-orange-500/30' 
-                              : 'bg-blue-500/10 text-blue-400 border-blue-500/30'
+                              ? 'bg-orange-500/20 text-orange-400 border-orange-500/40' 
+                              : 'bg-brand-500/15 text-brand-400 border-brand-500/30'
                           }`}>
                             {isOutsource ? '외주' : '사내'}
                           </span>

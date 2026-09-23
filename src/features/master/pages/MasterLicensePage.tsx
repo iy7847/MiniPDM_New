@@ -21,6 +21,7 @@ import { masterService } from '../services/masterService';
 import type { MasterCompanyItem } from '../services/masterService';
 import { AddCompanyModal } from '../components/AddCompanyModal';
 import { ChangeExpiryModal } from '../components/ChangeExpiryModal';
+import { CompanyDetailModal } from '../components/CompanyDetailModal';
 import { useConfirm } from '@/app/providers/ConfirmProvider';
 import { toast } from '@/shared/stores/useToastStore';
 
@@ -32,6 +33,8 @@ export const MasterLicensePage: React.FC = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isExpiryModalOpen, setIsExpiryModalOpen] = useState(false);
   const [selectedCompanyForExpiry, setSelectedCompanyForExpiry] = useState<MasterCompanyItem | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [selectedCompanyForDetail, setSelectedCompanyForDetail] = useState<MasterCompanyItem | null>(null);
   const [editingMemoId, setEditingMemoId] = useState<string | null>(null);
   const [tempMemo, setTempMemo] = useState('');
 
@@ -71,6 +74,8 @@ export const MasterLicensePage: React.FC = () => {
         c.companyName.toLowerCase().includes(search.toLowerCase()) ||
         c.ceoName.toLowerCase().includes(search.toLowerCase()) ||
         c.bizNum.includes(search) ||
+        (c.email && c.email.toLowerCase().includes(search.toLowerCase())) ||
+        (c.masterEmail && c.masterEmail.toLowerCase().includes(search.toLowerCase())) ||
         c.billingMemo.toLowerCase().includes(search.toLowerCase());
 
       if (!matchSearch) return false;
@@ -322,27 +327,60 @@ export const MasterLicensePage: React.FC = () => {
                         isBlocked ? 'bg-red-950/10' : ''
                       }`}
                     >
-                      {/* 업체명 */}
+                      {/* 업체명 & 가입정보 */}
                       <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-2">
-                          <div className={`p-2 rounded-lg border ${
+                        <div 
+                          onClick={() => {
+                            setSelectedCompanyForDetail(c);
+                            setIsDetailModalOpen(true);
+                          }}
+                          className="flex items-start gap-2.5 cursor-pointer group p-1 -m-1 rounded-lg hover:bg-bg-elevated/60 transition-colors"
+                          title="클릭하여 고객사 가입 정보 및 소속 사용자 상세 확인/수정"
+                        >
+                          <div className={`p-2 rounded-lg border mt-0.5 shrink-0 transition-colors ${
                             c.isMasterVendor 
-                              ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' 
-                              : 'bg-bg-elevated border-border-default text-text-primary'
+                              ? 'bg-amber-500/10 border-amber-500/30 text-amber-400 group-hover:border-amber-500/60' 
+                              : 'bg-bg-elevated border-border-default text-text-primary group-hover:border-brand-500/40 group-hover:text-brand-400'
                           }`}>
                             {c.isMasterVendor ? <Crown className="w-4 h-4" /> : <Building2 className="w-4 h-4" />}
                           </div>
-                          <div>
-                            <div className="font-bold text-text-primary flex items-center gap-1.5">
-                              {c.companyName}
+                          <div className="min-w-0">
+                            <div className="font-bold text-text-primary group-hover:text-brand-400 transition-colors flex items-center gap-1.5 flex-wrap">
+                              <span>{c.companyName}</span>
                               {c.isMasterVendor && (
                                 <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-400 font-black border border-amber-500/30">
                                   KEP 본사
                                 </span>
                               )}
+                              <span className="opacity-0 group-hover:opacity-100 text-[10px] text-brand-400 font-normal bg-brand-500/10 px-1.5 py-0.5 rounded border border-brand-500/20 transition-opacity">
+                                정보 수정 ✎
+                              </span>
                             </div>
-                            <div className="text-[11px] text-text-secondary">
-                              {c.ceoName ? `대표: ${c.ceoName}` : ''} {c.bizNum ? `(${c.bizNum})` : ''}
+                            
+                            {/* 대표자 및 사업자등록번호 */}
+                            <div className="text-[11px] text-text-secondary flex items-center gap-2 mt-0.5 flex-wrap">
+                              {c.ceoName && <span>대표: <strong className="text-text-primary font-medium">{c.ceoName}</strong></span>}
+                              {c.bizNum ? (
+                                <span className="font-mono text-[11px] text-text-secondary">사업자: {c.bizNum}</span>
+                              ) : (
+                                <span className="text-[10px] text-amber-400/80 bg-amber-500/10 px-1 py-0.2 rounded">
+                                  사업자번호 미등록
+                                </span>
+                              )}
+                            </div>
+
+                            {/* 가입 이메일 / 연락처 */}
+                            <div className="text-[11px] text-text-secondary/80 flex items-center gap-2 mt-0.5 flex-wrap">
+                              {(c.email || c.masterEmail) && (
+                                <span className="flex items-center gap-1 text-slate-400 font-mono text-[10.5px]">
+                                  ✉ {c.email || c.masterEmail}
+                                </span>
+                              )}
+                              {c.phone && (
+                                <span className="text-[10.5px] text-slate-400">
+                                  ☎ {c.phone}
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -566,6 +604,17 @@ export const MasterLicensePage: React.FC = () => {
         }}
         company={selectedCompanyForExpiry}
         onSuccess={loadCompanies}
+      />
+
+      {/* 고객사 가입 정보 및 소속 사용자 상세 모달 */}
+      <CompanyDetailModal
+        isOpen={isDetailModalOpen}
+        onClose={() => {
+          setIsDetailModalOpen(false);
+          setSelectedCompanyForDetail(null);
+        }}
+        company={selectedCompanyForDetail}
+        onUpdated={loadCompanies}
       />
     </div>
   );

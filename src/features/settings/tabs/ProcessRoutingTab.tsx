@@ -5,7 +5,7 @@ import { Button } from '@/design-system/Button';
 import { BaseInput } from '@/design-system/BaseInput';
 import { Table, Thead, Tbody, Tr, Th, Td } from '@/design-system/Table';
 import { StatusBadge } from '@/design-system/StatusBadge';
-import { Plus, Edit2, Trash2, GripVertical, Settings } from 'lucide-react';
+import { Plus, Edit2, Trash2, GripVertical, Settings, Truck } from 'lucide-react';
 import { fetchProcesses, createProcess, updateProcess, deleteProcess, fetchRoutingTemplates, createRoutingTemplate, updateRoutingTemplate, deleteRoutingTemplate } from '../services/routingService';
 import type { ProcessMaster, RoutingTemplate } from '../services/routingService';
 import { toast } from '../../../shared/stores/useToastStore';
@@ -359,7 +359,9 @@ export function ProcessRoutingTab({ companyId }: Props) {
                     >
                       <option value="">+ 공정 추가</option>
                       {processes.map(p => (
-                        <option key={p.id} value={p.id}>{p.name} {p.is_outsource ? '(외주)' : ''}</option>
+                        <option key={p.id} value={p.id}>
+                          {p.is_outsource ? '⚡ [외주] ' : '[사내] '}{p.name}{p.description ? ` (${p.description})` : ''}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -385,19 +387,36 @@ export function ProcessRoutingTab({ companyId }: Props) {
                                   <div
                                     ref={provided.innerRef}
                                     {...provided.draggableProps}
-                                    className="flex items-center gap-3 p-3 bg-bg-surface border border-border-default rounded-md shadow-sm group"
+                                    className={`flex items-center gap-3 p-3 rounded-md shadow-sm group border transition-all ${
+                                      item.processes?.is_outsource 
+                                        ? 'bg-amber-500/10 border-amber-500/40 hover:border-amber-500/60' 
+                                        : 'bg-bg-surface border-border-default hover:border-brand-500/50'
+                                    }`}
                                   >
-                                    <div {...provided.dragHandleProps} className="text-text-tertiary cursor-grab hover:text-brand-500">
+                                    <div {...provided.dragHandleProps} className={`cursor-grab ${item.processes?.is_outsource ? 'text-amber-400/60 hover:text-amber-400' : 'text-text-tertiary hover:text-brand-500'}`}>
                                       <GripVertical size={18} />
                                     </div>
-                                    <div className="w-6 h-6 rounded-full bg-brand-500/20 text-brand-500 flex items-center justify-center text-xs font-bold shrink-0">
+                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                                      item.processes?.is_outsource 
+                                        ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' 
+                                        : 'bg-brand-500/20 text-brand-400 border border-brand-500/30'
+                                    }`}>
                                       {index + 1}
                                     </div>
-                                    <div className="flex-1 font-medium text-text-primary text-sm">
-                                      {item.processes?.name}
+                                    <div className="flex-1 text-sm flex items-baseline gap-2 flex-wrap">
+                                      <span className={`font-bold ${item.processes?.is_outsource ? 'text-amber-300' : 'text-text-primary'}`}>{item.processes?.name}</span>
+                                      {item.processes?.description && (
+                                        <span className={`text-xs font-normal ${item.processes?.is_outsource ? 'text-amber-300/70' : 'text-text-secondary'}`}>{item.processes.description}</span>
+                                      )}
                                     </div>
-                                    {item.processes?.is_outsource && (
-                                      <span className="text-[10px] bg-brand-500/10 text-brand-500 px-1.5 py-0.5 rounded">외주</span>
+                                    {item.processes?.is_outsource ? (
+                                      <span className="text-xs font-semibold bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded border border-amber-500/40 flex items-center gap-1">
+                                        <Truck size={12} /> 외주
+                                      </span>
+                                    ) : (
+                                      <span className="text-xs font-medium bg-brand-500/10 text-brand-400 px-2 py-0.5 rounded border border-brand-500/20">
+                                        사내
+                                      </span>
                                     )}
                                     <button 
                                       className="text-text-tertiary hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"

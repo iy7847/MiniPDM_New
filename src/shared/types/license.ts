@@ -10,6 +10,10 @@ export interface CompanyLicenseRaw {
   name: string;
   biz_num?: string | null;
   ceo_name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  fax?: string | null;
+  address?: string | null;
   license_status?: LicenseStatus | null;
   license_plan?: LicensePlan | null;
   trial_days?: number | null;
@@ -25,6 +29,10 @@ export interface CompanyLicense {
   companyName: string;
   bizNum: string;
   ceoName: string;
+  email: string;
+  phone: string;
+  fax: string;
+  address: string;
   status: LicenseStatus;
   plan: LicensePlan;
   trialDays: number;
@@ -50,6 +58,10 @@ export function calculateLicenseDetails(raw: CompanyLicenseRaw | null): CompanyL
       companyName: '',
       bizNum: '',
       ceoName: '',
+      email: '',
+      phone: '',
+      fax: '',
+      address: '',
       status: 'EXPIRED',
       plan: 'PRO',
       trialDays: 30,
@@ -115,6 +127,10 @@ export function calculateLicenseDetails(raw: CompanyLicenseRaw | null): CompanyL
     companyName: raw.name || '',
     bizNum: raw.biz_num || '',
     ceoName: raw.ceo_name || '',
+    email: raw.email || '',
+    phone: raw.phone || '',
+    fax: raw.fax || '',
+    address: raw.address || '',
     status,
     plan,
     trialDays,

@@ -8,6 +8,7 @@ import {
 import { AlertTriangle, PackageOpen, Plus, Trash2, TrendingUp, TrendingDown } from 'lucide-react';
 import type { OrderItem } from '../../types';
 import { FileBadge } from '../../../estimates/components/FileBadge';
+import { useCadViewerStore } from '../../../../shared/stores/useCadViewerStore';
 import { EXT_2D, EXT_3D } from '../../../../shared/utils/fileMatching';
 import { FileDropZone } from '../../../../shared/components/FileDropZone';
 import { DocumentMaskingModal } from '../../../../shared/components/DocumentMaskingModal';
@@ -192,6 +193,7 @@ export const OrderItemsTable: React.FC<OrderItemsTableProps> = ({
 
   const handleOpenMasking = async (file: any, itemId?: string) => {
     const fileName = (file.name || file.file_name || '').toLowerCase();
+    const rawFileName = file.name || file.file_name || 'model.stp';
     
     if (fileName.endsWith('.pdf')) {
       // PDF는 마스킹/뷰어 모달로 엽니다.
@@ -202,8 +204,12 @@ export const OrderItemsTable: React.FC<OrderItemsTableProps> = ({
       // 이미지는 미리보기 모달로 엽니다.
       setPreviewFile(file);
       setImagePreviewModalOpen(true);
+    } else if (fileName.endsWith('.stp') || fileName.endsWith('.step')) {
+      // 🚀 3D CAD 파일은 전역 3D CAD 뷰어로 엽니다.
+      useCadViewerStore.getState().openCadViewer(file);
+      return;
     } else {
-      // PDF나 이미지가 아니면(STEP 등) 로컬 기본 뷰어로 엽니다.
+      // PDF나 이미지가 아니면(STEP 외 CAD 등) 로컬 기본 뷰어로 엽니다.
       let filePath = file.file_path || file.path;
       if (!filePath && (window as any).webUtils && file instanceof File) {
         try {
@@ -641,9 +647,11 @@ export const OrderItemsTable: React.FC<OrderItemsTableProps> = ({
           }
           
           // 새로 생성된 마스킹 파일을 배열에 추가 (기존 파일 교체 효과)
-          if (onAddMaskedFile) {
+          if (onAddMaskedFile && maskingItemId) {
             onAddMaskedFile(maskingItemId, [newFile]);
           }
+
+          setMaskingFile(newFile);
         }} 
       />
 

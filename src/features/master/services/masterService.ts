@@ -7,6 +7,25 @@ export interface MasterCompanyItem extends CompanyLicense {
   pendingInvitesCount: number;
   totalUsersCount: number;
   createdAt: string;
+  masterEmail?: string | null;
+}
+
+export interface CompanyUserItem {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  job_title?: string | null;
+  phone?: string | null;
+  created_at: string;
+}
+
+export interface CompanyInviteItem {
+  id: string;
+  email: string;
+  role: string;
+  created_at: string;
+  expires_at?: string | null;
 }
 
 export const masterService = {
@@ -16,7 +35,7 @@ export const masterService = {
   async fetchAllCompanies(): Promise<MasterCompanyItem[]> {
     const { data: companies, error } = await supabase
       .from('companies')
-      .select('id, name, biz_num, ceo_name, license_status, license_plan, trial_days, license_expires_at, max_users, is_master_vendor, billing_memo, created_at')
+      .select('id, name, biz_num, ceo_name, email, phone, fax, address, license_status, license_plan, trial_days, license_expires_at, max_users, is_master_vendor, billing_memo, created_at')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -26,12 +45,12 @@ export const masterService = {
 
     if (!companies || companies.length === 0) return [];
 
-    // 업체별 사용자 수 및 초대 대기 수 병렬 카운트
+    // 업체별 사용자 수, 초대 대기 수, 최초 마스터 계정 이메일 병렬 조회
     const results: MasterCompanyItem[] = await Promise.all(
       companies.map(async (raw: CompanyLicenseRaw) => {
         const details = calculateLicenseDetails(raw);
 
-        const [profilesRes, invitesRes] = await Promise.all([
+        const [profilesRes, invitesRes, masterUserRes] = await Promise.all([
           supabase
             .from('profiles')
             .select('id', { count: 'exact', head: true })
@@ -40,11 +59,18 @@ export const masterService = {
             .from('invitations')
             .select('id', { count: 'exact', head: true })
             .eq('company_id', raw.id)
-            .eq('status', 'pending')
+            .eq('status', 'pending'),
+          supabase
+            .from('profiles')
+            .select('email')
+            .eq('company_id', raw.id)
+            .order('created_at', { ascending: true })
+            .limit(1)
         ]);
 
         const registeredUsersCount = profilesRes.count || 0;
         const pendingInvitesCount = invitesRes.count || 0;
+        const masterEmail = masterUserRes.data?.[0]?.email || null;
 
         return {
           ...details,
@@ -52,11 +78,68 @@ export const masterService = {
           pendingInvitesCount,
           totalUsersCount: registeredUsersCount + pendingInvitesCount,
           createdAt: raw.created_at || '',
+          masterEmail,
         };
       })
     );
 
     return results;
+  },
+
+  /**
+   * 특정 업체의 소속 사용자 및 대기 중인 초대 목록 조회
+   */
+  async fetchCompanyUsers(companyId: string): Promise<{ users: CompanyUserItem[]; invites: CompanyInviteItem[] }> {
+    const [usersRes, invitesRes] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('id, name, email, role, job_title, phone, created_at')
+        .eq('company_id', companyId)
+        .order('created_at', { ascending: true }),
+      supabase
+        .from('invitations')
+        .select('id, email, role, created_at, expires_at')
+        .eq('company_id', companyId)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+    ]);
+
+    if (usersRes.error) throw usersRes.error;
+    if (invitesRes.error) throw invitesRes.error;
+
+    return {
+      users: (usersRes.data || []) as CompanyUserItem[],
+      invites: (invitesRes.data || []) as CompanyInviteItem[],
+    };
+  },
+
+  /**
+   * 고객사 기본 가입 정보 업데이트
+   */
+  async updateCompanyInfo(
+    companyId: string,
+    updates: {
+      name?: string;
+      biz_num?: string | null;
+      ceo_name?: string | null;
+      email?: string | null;
+      phone?: string | null;
+      fax?: string | null;
+      address?: string | null;
+    }
+  ) {
+    const { error } = await supabase
+      .from('companies')
+      .update({
+        ...updates,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', companyId);
+
+    if (error) {
+      console.error('고객사 가입 정보 업데이트 오류:', error);
+      throw error;
+    }
   },
 
   /**

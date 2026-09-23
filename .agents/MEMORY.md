@@ -253,4 +253,28 @@
       - `vite.config.ts`에서 `modulePreload: false` 적용 및 번들 간소화.
       - 결과: 12초 병목이 0.1초로 완전 소멸되고, 자동 로그인과 이메일 기억도 완벽히 유지됨.
 
+14. **데스크탑 네이티브 윈도우 컨트롤 및 이벤트 최적화 규칙 (2026-09-09 기록)**
+    - **Windows 프레임리스 타이틀바 오버레이와 인터랙션 분리**:
+      - `titleBarStyle: 'hidden'`, `titleBarOverlay: { color: '#161B22', symbolColor: '#E6EDF3', height: 48 }` 사용 시, Windows 10/11 시스템 캡션 버튼(최소화/최대화/닫기)이 우측 상단 약 138px 너비로 오버레이됨.
+      - 최상단 `TopBar`에 `style={{ WebkitAppRegion: 'drag' }}`를 적용해 창 드래그 이동을 구현할 때, 내부의 모든 클릭 가능한 요소(`button`, `input`, 프로필 메뉴, 링크)에는 반드시 `style={{ WebkitAppRegion: 'no-drag' }}`를 명시해야 마우스 클릭 및 포커스가 정상 동작함.
+      - 캡션 버튼과 프로필 아바타 버튼이 겹치지 않도록 Electron 환경에서는 우측 패딩 `pr-36`을 반드시 확보해야 함.
+    - **윈도우 창 상태(Bounds & Maximized) 저장 주의점**:
+      - 창이 최대화(`win.isMaximized() === true`)되어 있을 때 `win.getBounds()`를 저장하면 일반 복원 시 전체 화면 크기가 일반 크기로 오염됨.
+      - 최대화 상태에서는 직전의 `normal bounds`(x, y, w, h)를 그대로 보존하고 `isMaximized: true` 플래그만 기록해야 다음 실행 시 정상 복원 및 복원 해제가 가능함.
+      - 듀얼 모니터 분리 시 화면 밖 렌더링 방지를 위해 `screen.getAllDisplays()`로 저장된 좌표가 유효한 디스플레이 영역에 속하는지 반드시 검증해야 함.
+    - **전역 텍스트 선택 통제(`user-select: none`) 시 데이터 그리드 보호**:
+      - `body`에 `user-select: none;`을 적용할 때, 엑셀형 스프레드시트 컴포넌트(`react-datasheet-grid`의 `.dsg-container`, `.dsg-cell`)와 텍스트 입력 필드(`input, textarea`), 복사가 필요한 `.selectable` 클래스에는 반드시 `user-select: text` 예외를 명시해야 사용자가 셀을 선택하고 `Ctrl+C` 복사할 수 있음.
 
+15. **[결함 해결 & 오답 노트] 4대 핵심 결함 해결 내역 (2026-09-21 기록)**
+    - **1) 수주 전환 시 `orders_order_number_key` 제약조건 중복 위반**:
+      - **원인**: 과거 마이그레이션(`20260726000001`)에서 `ALTER TABLE orders ADD COLUMN order_number TEXT UNIQUE;`로 전역 UNIQUE가 걸려 있어 다른 회사가 이미 발급한 수주번호(`P2609-001` 등)와 신규 가입 회사의 첫 수주번호가 전역에서 충돌함.
+      - **해결**: 전역 제약조건 `orders_order_number_key` 및 `orders_po_no_key`를 DROP하고, `UNIQUE (company_id, order_number)` 복합 고유 제약조건으로 테넌트 격리 완료. `convert_estimate_to_order` RPC 및 `createDirectOrder` 채번 충돌 회피 루프 보강.
+    - **2) 3D CAD/STEP 뷰어 진입 후 2~3초 뒤 크래시/튕김**:
+      - **원인**: `CadCanvas.tsx` 내부의 Three.js `animate()` 루프(requestAnimationFrame)에서 `setFrameTick((t) => (t + 1) % 60);`를 매 프레임마다 호출하여 1초에 60회씩 React 전체 컴포넌트 리렌더링 폭주 유발.
+      - **해결**: `setFrameTick`을 완전 제거하고, `OrbitControls`의 `change` 이벤트 리스너에서 rAF 쓰로틀링으로 카메라를 조작할 때만 2D 오버레이 좌표를 갱신하도록 분리. 정지 상태에서는 리렌더링 0회로 CPU/메모리 부하 및 튕김 100% 소멸.
+    - **3) PDF 도면 마스킹 저장 후 품목 파일 목록에 동일 파일 2개 복제**:
+      - **원인**: `EstimateTable.tsx`의 `onSaveMaskedPdf`에서 DB에 이미 존재하는 파일(`maskingFile.id` 존재)임에도 `onSaveFiles`를 무조건 호출하여 `it.files`에 있던 원본 파일에 더해 `it.tempFiles`에 동일한 파일이 추가되어 화면에 2개로 표시되고 중복 저장됨.
+      - **해결**: 이미 DB에 저장된 파일 마스킹 시 `files` 목록에서 기존 파일을 필터링하고 `onRemoveSingleFile`을 연계하여 단일 교체만 일어나도록 방어.
+    - **4) 앱 초기 기동 시 간헐적 무한 로딩 스피너**:
+      - **원인**: `AuthProvider.tsx`에서 네트워크 지연 또는 Supabase Gotrue 내부 클라이언트 잠금 시 `loading: false` 전환이 지연되어 스피너에 갇히는 현상 발생.
+      - **해결**: 2초 절대 하드 타임아웃 가드(`setTimeout(() => setLoading(false), 2000)`)를 장착하여 어떠한 예외/지연 상황에서도 2초 내에 무조건 스피너를 해제하도록 보장.

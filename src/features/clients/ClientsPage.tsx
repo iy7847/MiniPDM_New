@@ -14,14 +14,14 @@ import { useConfirm } from '@/app/providers/ConfirmProvider';
 const SESSION_KEY = 'minipdm_clients_filters';
 
 export function ClientsPage() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { confirm } = useConfirm();
 
-  const [companyId, setCompanyId] = useState<string | null>(null);
-  const [userRole, setUserRole] = useState<string | null>(null);
+  const [companyId, setCompanyId] = useState<string | null>(() => profile?.company_id || null);
+  const [userRole, setUserRole] = useState<string | null>(() => profile?.role || null);
 
   const { clients, loading, fetchClients, saveClient, deleteClient } = useClients();
 
@@ -50,6 +50,12 @@ export function ClientsPage() {
 
   useEffect(() => {
     async function fetchUserData() {
+      if (profile?.company_id) {
+        setCompanyId(profile.company_id);
+        setUserRole(profile.role || null);
+        fetchClients(profile.company_id);
+        return;
+      }
       if (user) {
         const { data } = await supabase
           .from('profiles')
@@ -64,7 +70,7 @@ export function ClientsPage() {
       }
     }
     fetchUserData();
-  }, [user, fetchClients]);
+  }, [user, profile, fetchClients]);
 
   const showNotification = (message: string, type: 'success' | 'error') => {
     setNotification({ message, type });
@@ -90,9 +96,12 @@ export function ClientsPage() {
   };
 
   const handleSaveClient = async (formData: ClientFormData, editId?: string) => {
-    if (!companyId) return;
+    const targetCompanyId = companyId || profile?.company_id;
+    if (!targetCompanyId) {
+      throw new Error('회사 정보를 불러오지 못했습니다. 새로고침 후 다시 시도해주세요.');
+    }
     try {
-      await saveClient(companyId, formData, editId);
+      await saveClient(targetCompanyId, formData, editId);
       showNotification(editId ? '거래처가 성공적으로 수정되었습니다.' : '거래처가 성공적으로 등록되었습니다.', 'success');
     } catch (err: any) {
       throw err; // Modal will handle and show error
@@ -100,16 +109,18 @@ export function ClientsPage() {
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (userRole !== 'admin' && userRole !== 'super_admin') {
+    const role = userRole || profile?.role;
+    if (role !== 'admin' && role !== 'super_admin') {
       showNotification('삭제 권한이 없습니다.', 'error');
       return;
     }
     if (!(await confirm({ title: '거래처 삭제', description: `정말 [${name}] 업체를 삭제하시겠습니까? 관련된 내역이 있을 경우 삭제가 불가능할 수 있습니다.`, isDanger: true }))) return;
 
-    if (!companyId) return;
+    const targetCompanyId = companyId || profile?.company_id;
+    if (!targetCompanyId) return;
     
     try {
-      await deleteClient(companyId, id);
+      await deleteClient(targetCompanyId, id);
       showNotification('성공적으로 삭제되었습니다.', 'success');
     } catch (err: any) {
       showNotification(`삭제 실패: ${err.message}`, 'error');

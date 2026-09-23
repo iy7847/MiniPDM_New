@@ -21,6 +21,7 @@ import { ImagePreviewModal } from '@/shared/components/ImagePreviewModal';
 import { DeleteConfirmModal } from '@/shared/components/DeleteConfirmModal';
 import { toast } from '@/shared/stores/useToastStore';
 import { supabase } from '@/shared/services/supabase';
+import { useAuth } from '@/app/providers/AuthProvider';
 
 import { OrderDispatchModal } from './components/OrderDispatchModal';
 import { EditablePriceCell } from './components/EditablePriceCell';
@@ -87,13 +88,19 @@ export const OutsourcePage = () => {
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
   const [undoReceivingConfirmOpen, setUndoReceivingConfirmOpen] = useState(false);
 
+  const { profile } = useAuth();
+
   // Suppliers for dropdown
   const [suppliers, setSuppliers] = useState<{id: string, name: string, manager_email?: string, manager_name?: string}[]>([]);
   useEffect(() => {
-    supabase.from('clients').select('id, name, manager_email, manager_name').in('client_type', ['SUPPLIER', 'BOTH']).then(({ data }) => {
+    let query = supabase.from('clients').select('id, name, manager_email, manager_name').in('client_type', ['SUPPLIER', 'BOTH']);
+    if (profile?.company_id) {
+      query = query.eq('company_id', profile.company_id);
+    }
+    query.order('name', { ascending: true }).then(({ data }) => {
       if (data) setSuppliers(data);
     });
-  }, []);
+  }, [profile?.company_id]);
 
   // Filter items based on search and status
   const filteredItems = useMemo(() => {

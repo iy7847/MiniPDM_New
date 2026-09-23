@@ -22,7 +22,10 @@ export function useProductionList() {
             id, po_no, order_date, status, client_id, delivery_date,
             clients ( name )
           ),
-          process_logs ( * ),
+          process_logs ( 
+            *,
+            processes ( id, name, description )
+          ),
           outsource_orders ( * ),
           material_orders ( status )
         `)

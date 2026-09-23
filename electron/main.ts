@@ -1,14 +1,19 @@
-import { app, BrowserWindow, ipcMain, shell, session } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, session, dialog, screen } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import os from 'os';
 import { exec } from 'child_process';
+import http from 'http';
 
 // 🚀 Windows 환경에서 Chromium WPAD 프록시 자동 탐색으로 인한 10초 스톨(Stall) 원천 차단
 app.commandLine.appendSwitch('no-proxy-server');
 app.commandLine.appendSwitch('disable-http-cache');
+// 🚀 AI 에이전트 및 E2E 테스트 자동화를 위한 CDP 디버깅 포트 개방 (Playwright 실행 시 충돌 방지 가드)
+if (!process.env.PW_TEST && !app.commandLine.hasSwitch('remote-debugging-port')) {
+  app.commandLine.appendSwitch('remote-debugging-port', '9222');
+}
 
 const startTime = Date.now();
 function getPerfLogPath(): string {
@@ -50,26 +55,146 @@ const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL'];
 
 app.setName('MiniPDM');
 
+interface WindowState {
+  x?: number;
+  y?: number;
+  width: number;
+  height: number;
+  isMaximized: boolean;
+}
+
+function getWindowStatePath(): string {
+  return path.join(app.getPath('userData'), 'window-state.json');
+}
+
+function loadWindowState(): WindowState {
+  const defaultState: WindowState = {
+    width: 1400,
+    height: 900,
+    isMaximized: false
+  };
+
+  try {
+    const filePath = getWindowStatePath();
+    if (fs.existsSync(filePath)) {
+      const parsed = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+      if (parsed && typeof parsed.width === 'number' && typeof parsed.height === 'number') {
+        const state: WindowState = {
+          width: Math.max(1024, parsed.width),
+          height: Math.max(700, parsed.height),
+          isMaximized: !!parsed.isMaximized
+        };
+
+        // 다중 모니터 분리 시 화면 밖으로 뜨는 현상 방지
+        if (typeof parsed.x === 'number' && typeof parsed.y === 'number') {
+          const visible = screen.getAllDisplays().some(display => {
+            const b = display.bounds;
+            return (
+              parsed.x >= b.x &&
+              parsed.x < b.x + b.width &&
+              parsed.y >= b.y &&
+              parsed.y < b.y + b.height
+            );
+          });
+          if (visible) {
+            state.x = parsed.x;
+            state.y = parsed.y;
+          }
+        }
+        return state;
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to load window state:', e);
+  }
+  return defaultState;
+}
+
+let saveStateTimeout: NodeJS.Timeout | null = null;
+function saveWindowState(targetWin: BrowserWindow) {
+  if (saveStateTimeout) clearTimeout(saveStateTimeout);
+  saveStateTimeout = setTimeout(() => {
+    try {
+      if (!targetWin || targetWin.isDestroyed()) return;
+      const isMaximized = targetWin.isMaximized();
+      let bounds = targetWin.getBounds();
+
+      // 최대화 시 이전 일반 창 크기를 보존
+      if (isMaximized) {
+        const existing = loadWindowState();
+        bounds = {
+          x: existing.x ?? bounds.x,
+          y: existing.y ?? bounds.y,
+          width: existing.width ?? bounds.width,
+          height: existing.height ?? bounds.height
+        };
+      }
+
+      const state: WindowState = {
+        x: bounds.x,
+        y: bounds.y,
+        width: bounds.width,
+        height: bounds.height,
+        isMaximized
+      };
+
+      fs.writeFileSync(getWindowStatePath(), JSON.stringify(state, null, 2), 'utf-8');
+    } catch (e) {
+      console.warn('Failed to save window state:', e);
+    }
+  }, 300);
+}
+
 function createWindow() {
   logPerf('createWindow 시작');
   const iconPath = process.platform === 'win32'
     ? path.join(process.env.VITE_PUBLIC, 'favicon.ico')
     : path.join(process.env.VITE_PUBLIC, 'kep_logo.png');
 
+  const windowState = loadWindowState();
+
   // 🚀 V1 순정 스타일: partition 없이 기본 세션의 영구 localStorage 사용
   win = new BrowserWindow({
     title: 'MiniPDM v2.0',
     icon: fs.existsSync(iconPath) ? iconPath : path.join(process.env.VITE_PUBLIC, 'kep_logo.png'),
     backgroundColor: '#0D1117',
-    show: false, // 🚀 V1 방식: 렌더링 완료 즉시 ready-to-show에서 화면 표시
+    show: false, // 렌더링 완료 즉시 ready-to-show에서 화면 표시
+    x: windowState.x,
+    y: windowState.y,
+    width: windowState.width,
+    height: windowState.height,
+    minWidth: 1024,
+    minHeight: 700,
+    autoHideMenuBar: true,
+    titleBarStyle: 'hidden',
+    titleBarOverlay: {
+      color: '#161B22',
+      symbolColor: '#E6EDF3',
+      height: 48
+    },
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
       contextIsolation: true,
     },
-    width: 1200,
-    height: 800,
-    autoHideMenuBar: true,
+  });
+
+  if (windowState.isMaximized) {
+    win.maximize();
+  }
+
+  // 창 상태 자동 저장 이벤트
+  win.on('resize', () => win && saveWindowState(win));
+  win.on('move', () => win && saveWindowState(win));
+  win.on('close', () => win && saveWindowState(win));
+
+  // 프로덕션 환경에서 실수로 F5, Ctrl+R 누름으로 인한 작업 데이터 유실 방지
+  win.webContents.on('before-input-event', (event, input) => {
+    if (!VITE_DEV_SERVER_URL) {
+      if ((input.control && input.key.toLowerCase() === 'r') || input.key === 'F5') {
+        event.preventDefault();
+      }
+    }
   });
 
   win.webContents.on('dom-ready', () => {
@@ -80,12 +205,16 @@ function createWindow() {
     logPerf('win.webContents did-finish-load 완료');
   });
 
-  // 🚀 V1 방식: 첫 화면 렌더링 준비 완료 시 즉시 창을 띄워 지연 체감 0ms
+  // 🚀 첫 화면 렌더링 준비 완료 시 즉시 창을 띄워 지연 체감 0ms
   win.once('ready-to-show', () => {
     logPerf('win ready-to-show 발생 -> 창 표시');
     win?.show();
     win?.focus();
   });
+
+  if (win) {
+    setupConsoleLogging(win);
+  }
 
   if (VITE_DEV_SERVER_URL) {
     logPerf('win.loadURL 호출: ' + VITE_DEV_SERVER_URL);
@@ -122,6 +251,9 @@ app.whenReady().then(async () => {
   try {
     createWindow();
 
+    // 🤖 AI 에이전트 및 E2E 자동 테스트 브릿지 HTTP 서버 기동
+    startAgentBridgeServer();
+
     // 🚀 기동 1초 후 즉각 백그라운드 업데이트 확인 및 10분 주기 폴링 시작
     startAutoUpdateChecks();
   } catch (err) {
@@ -139,16 +271,40 @@ process.on('uncaughtException', (err) => {
 ipcMain.handle('read-local-file', async (event, filePath: string) => {
   try {
     let targetPath = filePath;
-    if (!path.isAbsolute(filePath)) {
-      // First try current directory (MiniPDM_New)
-      targetPath = path.join(process.cwd(), filePath);
-      if (!fs.existsSync(targetPath)) {
-        // Fallback to old MiniPDM directory for migration compatibility
-        targetPath = path.join('D:\\06_Coding\\AntiGravity\\MiniPDM', filePath);
+    if (!fs.existsSync(targetPath)) {
+      const candidates: string[] = [];
+      
+      // 1. 상대 경로 기본 프로젝트 경로
+      candidates.push(path.join(process.cwd(), filePath));
+      
+      // 2. 레거시 MiniPDM 경로
+      candidates.push(path.join('D:\\06_Coding\\AntiGravity\\MiniPDM', filePath));
+      
+      // 3. 사내 기본 임시 데이터 경로
+      candidates.push(path.join('D:\\99_ETC\\임시데이터', filePath));
+      
+      // 4. userData 내 MiniPDM_Storage 하위 경로들 탐색
+      const storageDir = path.join(app.getPath('userData'), 'MiniPDM_Storage');
+      if (fs.existsSync(storageDir)) {
+        try {
+          const companyDirs = fs.readdirSync(storageDir);
+          for (const cDir of companyDirs) {
+            candidates.push(path.join(storageDir, cDir, filePath));
+          }
+        } catch {}
+      }
+
+      // 후보 경로 중 존재하는 첫 번째 경로 선택
+      const found = candidates.find(c => fs.existsSync(c));
+      if (found) {
+        targetPath = found;
       }
     }
+
     const data = await fs.promises.readFile(targetPath);
-    return { success: true, data: data.buffer };
+    // Node.js Buffer pool 공유로 인한 가비지 데이터 유입 방지: 실제 바이트 범위만 정밀 슬라이스
+    const arrayBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+    return { success: true, data: arrayBuffer, actualPath: targetPath };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
@@ -209,6 +365,21 @@ ipcMain.handle('save-file-from-buffer', async (event, data: ArrayBuffer | Uint8A
     return { success: true, filePath: destPath };
   } catch (error: any) {
     console.error('save-file-from-buffer error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('select-directory', async (event, title?: string) => {
+  try {
+    const result = await dialog.showOpenDialog({
+      title: title || '폴더를 선택하세요',
+      properties: ['openDirectory', 'createDirectory']
+    });
+    if (result.canceled || result.filePaths.length === 0) {
+      return { success: false, canceled: true };
+    }
+    return { success: true, folderPath: result.filePaths[0] };
+  } catch (error: any) {
     return { success: false, error: error.message };
   }
 });
@@ -433,5 +604,124 @@ ipcMain.handle('storage-get-all', () => {
 ipcMain.on('storage-get-all-sync', (event) => {
   event.returnValue = readUserStorage();
 });
+
+// ==============================================================================
+// 🤖 AI Agent Test Bridge HTTP Server (개발 및 E2E 자동화용 API)
+// ==============================================================================
+interface ConsoleLogItem {
+  level: number;
+  message: string;
+  line: number;
+  sourceId: string;
+  time: string;
+}
+
+const consoleLogs: ConsoleLogItem[] = [];
+
+function setupConsoleLogging(targetWin: BrowserWindow) {
+  targetWin.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    consoleLogs.push({ level, message, line, sourceId, time: new Date().toISOString() });
+    if (consoleLogs.length > 500) consoleLogs.shift();
+  });
+}
+
+function startAgentBridgeServer() {
+  const PORT = 49152;
+  const server = http.createServer(async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+
+    const url = new URL(req.url || '/', `http://localhost:${PORT}`);
+
+    const sendJson = (status: number, data: any) => {
+      res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify(data, null, 2));
+    };
+
+    const getBody = (): Promise<any> => {
+      return new Promise((resolve) => {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', () => {
+          try { resolve(body ? JSON.parse(body) : {}); }
+          catch { resolve({}); }
+        });
+      });
+    };
+
+    try {
+      if (url.pathname === '/api/status' && req.method === 'GET') {
+        if (!win || win.isDestroyed()) {
+          return sendJson(503, { ok: false, error: 'Window not ready' });
+        }
+        const currentUrl = win.webContents.getURL();
+        let hash = '';
+        try {
+          hash = await win.webContents.executeJavaScript('window.location.hash');
+        } catch {}
+        return sendJson(200, {
+          ok: true,
+          url: currentUrl,
+          hash,
+          isMinimized: win.isMinimized(),
+          isFocused: win.isFocused(),
+          bounds: win.getBounds(),
+        });
+      }
+
+      if (url.pathname === '/api/navigate' && req.method === 'POST') {
+        if (!win || win.isDestroyed()) return sendJson(503, { ok: false, error: 'Window not ready' });
+        const { hash } = await getBody();
+        if (!hash) return sendJson(400, { ok: false, error: 'Missing hash' });
+        await win.webContents.executeJavaScript(`window.location.hash = ${JSON.stringify(hash)};`);
+        return sendJson(200, { ok: true, hash });
+      }
+
+      if (url.pathname === '/api/eval' && req.method === 'POST') {
+        if (!win || win.isDestroyed()) return sendJson(503, { ok: false, error: 'Window not ready' });
+        const { code } = await getBody();
+        if (!code) return sendJson(400, { ok: false, error: 'Missing code' });
+        const result = await win.webContents.executeJavaScript(code);
+        return sendJson(200, { ok: true, result });
+      }
+
+      if (url.pathname === '/api/screenshot' && req.method === 'POST') {
+        if (!win || win.isDestroyed()) return sendJson(503, { ok: false, error: 'Window not ready' });
+        const { targetPath } = await getBody();
+        const image = await win.webContents.capturePage();
+        const buffer = image.toPNG();
+        const savePath = targetPath || path.join(process.cwd(), 'screenshot.png');
+        const dir = path.dirname(savePath);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(savePath, buffer);
+        return sendJson(200, { ok: true, savedTo: savePath, size: buffer.length });
+      }
+
+      if (url.pathname === '/api/logs' && req.method === 'GET') {
+        return sendJson(200, { ok: true, logs: consoleLogs });
+      }
+
+      sendJson(404, { ok: false, error: 'Not found' });
+    } catch (e: any) {
+      sendJson(500, { ok: false, error: e.message });
+    }
+  });
+
+  server.on('error', (err: any) => {
+    console.log('[AGENT BRIDGE] Server port 49152 already in use or error:', err.message);
+  });
+
+  server.listen(PORT, '127.0.0.1', () => {
+    console.log(`[AGENT BRIDGE] Test API server listening on http://127.0.0.1:${PORT}`);
+  });
+}
+
 
 

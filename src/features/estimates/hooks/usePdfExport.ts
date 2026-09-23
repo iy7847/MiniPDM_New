@@ -28,7 +28,8 @@ export function usePdfExport() {
       const srcDoc = await PDFDocument.load(arrayBuffer);
       const newItems = [];
 
-      const validResults = ocrResults.filter(res => !res.skip && res.part_no);
+      const validResults = ocrResults.filter(res => !res.skip);
+      const originalName = file.name.replace(/\.pdf$/i, '');
 
       for (const res of validResults) {
         const subDoc = await PDFDocument.create();
@@ -60,7 +61,9 @@ export function usePdfExport() {
         }
 
         const pdfBytes = await subDoc.save();
-        const safeName = (res.part_no || res.part_name || `Page${res.page}`).replace(/[^a-zA-Z0-9가-힣\s-_]/g, '').trim();
+        const partNo = res.part_no || `${originalName}_P${res.page}`;
+        const partName = res.part_name || `도면 ${res.page}페이지`;
+        const safeName = (res.part_no || res.part_name || `${originalName}_P${res.page}`).replace(/[^a-zA-Z0-9가-힣\s-_]/g, '').trim();
         const pdfFileName = `${safeName}.pdf`;
 
         const pdfFile = new File([pdfBytes as any], pdfFileName, { type: 'application/pdf' });
@@ -68,8 +71,8 @@ export function usePdfExport() {
         const newItem: EstimateItem = {
           ...createInitialItemForm(companyInfo),
           id: crypto.randomUUID(),
-          part_no: res.part_no || '',
-          part_name: res.part_name || '',
+          part_no: partNo,
+          part_name: partName,
           original_material_name: res.material || '',
           tempFiles: [pdfFile],
           qty: 1
@@ -96,6 +99,7 @@ export function usePdfExport() {
   ) => {
     if (!file) return;
 
+    let targetDir = '';
     let sourcePath = (file as any).path;
     if (!sourcePath && (window as any).webUtils) {
       try {
@@ -103,14 +107,22 @@ export function usePdfExport() {
       } catch (e) {}
     }
 
-    if (!sourcePath || !(window as any).ipcRenderer) {
-      toast.error('이 기능은 Electron 데스크탑 앱에서만 지원됩니다 (웹 브라우저에서는 원본 경로 접근 불가).');
-      return;
+    if (sourcePath) {
+      targetDir = getDirectoryPath(sourcePath);
     }
 
-    const targetDir = getDirectoryPath(sourcePath);
+    // 만약 targetDir을 찾지 못했다면 Electron 폴더 선택 다이얼로그 띄우기
+    if (!targetDir && (window as any).ipcRenderer) {
+      const selectRes = await (window as any).ipcRenderer.invoke('select-directory', '분할된 PDF 파일을 저장할 폴더를 선택하세요');
+      if (selectRes?.success && selectRes.folderPath) {
+        targetDir = selectRes.folderPath;
+      } else if (selectRes?.canceled) {
+        return; // 사용자가 선택 취소
+      }
+    }
+
     if (!targetDir) {
-      toast.error('저장 경로를 찾을 수 없습니다.');
+      toast.error('저장할 대상 폴더를 찾을 수 없습니다.');
       return;
     }
 

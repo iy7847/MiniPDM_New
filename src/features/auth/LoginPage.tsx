@@ -5,12 +5,22 @@ import { ForgotPasswordModal } from './components/ForgotPasswordModal';
 import { Lock, Mail, Activity, ArrowRight, CheckCircle2 } from 'lucide-react';
 import kepLogo from '@/assets/kep_logo.png';
 import { appStorage } from '@/shared/services/persistentStorage';
+import { useAuth } from '@/app/providers/AuthProvider';
 
 const SAVED_EMAIL_KEY = 'minipdm_saved_email';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, loading: authLoading } = useAuth();
+
+  // 🚀 이미 로그인된 상태이거나 세션이 복원된 경우 로그인 화면에 머물지 않고 즉시 메인 대시보드로 이동
+  React.useEffect(() => {
+    if (!authLoading && user) {
+      navigate('/', { replace: true });
+    }
+  }, [user, authLoading, navigate]);
+
   const savedEmail = appStorage.getItem(SAVED_EMAIL_KEY) || '';
   const [email, setEmail] = useState(location.state?.email || savedEmail);
   const [password, setPassword] = useState('');

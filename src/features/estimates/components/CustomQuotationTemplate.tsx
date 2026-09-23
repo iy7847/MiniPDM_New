@@ -30,10 +30,30 @@ const formatPhoneNumber = (value: string) => {
   }
 };
 
-const getLocalImagePath = (path: string | undefined | null) => {
+const resolveImagePath = async (path: string | undefined | null): Promise<string> => {
   if (!path) return '';
   if (path.startsWith('http') || path.startsWith('data:') || path.startsWith('blob:')) return path;
-  
+
+  // Electron 환경에서 로컬 파일일 경우, ipcRenderer로 읽어서 Blob URL로 변환 (Chromium 로컬 파일 보안 차단 원천 해결)
+  if ((window as any).ipcRenderer) {
+    try {
+      const res = await (window as any).ipcRenderer.invoke('read-local-file', path);
+      if (res.success && res.data) {
+        const ext = path.toLowerCase().endsWith('.png') ? 'image/png' : path.toLowerCase().endsWith('.gif') ? 'image/gif' : 'image/jpeg';
+        const blob = new Blob([res.data], { type: ext });
+        return URL.createObjectURL(blob);
+      }
+    } catch (e) {
+      console.warn('Failed to load local image via IPC:', e);
+    }
+  }
+
+  // Supabase Storage 경로인 경우 (드라이브 문자가 없는 경우)
+  if (!path.includes(':') && !path.startsWith('/') && !path.startsWith('\\')) {
+    const { data } = supabase.storage.from('company_assets').getPublicUrl(path);
+    if (data?.publicUrl) return data.publicUrl;
+  }
+
   let normalizedPath = path.replace(/\\/g, '/');
   normalizedPath = normalizedPath.replace(/^file:\/\/\//i, '');
   
@@ -48,39 +68,37 @@ export const CustomQuotationTemplate = React.forwardRef<HTMLDivElement, CustomQu
   const [sealSrc, setSealSrc] = useState<string | null>(null);
 
   useEffect(() => {
+    let active = true;
     const loadImages = async () => {
       if (companyInfo?.logo_path) {
-        if (companyInfo.logo_path.startsWith('C:') || companyInfo.logo_path.startsWith('D:')) {
-          setLogoSrc(getLocalImagePath(companyInfo.logo_path));
-        } else {
-          const { data } = supabase.storage.from('company_assets').getPublicUrl(companyInfo.logo_path);
-          setLogoSrc(data.publicUrl);
-        }
+        const url = await resolveImagePath(companyInfo.logo_path);
+        if (active) setLogoSrc(url);
       }
       if (companyInfo?.seal_path) {
-        if (companyInfo.seal_path.startsWith('C:') || companyInfo.seal_path.startsWith('D:')) {
-          setSealSrc(getLocalImagePath(companyInfo.seal_path));
-        } else {
-          const { data } = supabase.storage.from('company_assets').getPublicUrl(companyInfo.seal_path);
-          setSealSrc(data.publicUrl);
-        }
+        const url = await resolveImagePath(companyInfo.seal_path);
+        if (active) setSealSrc(url);
       }
     };
     loadImages();
-  }, [companyInfo]);
+    return () => {
+      active = false;
+    };
+  }, [companyInfo?.logo_path, companyInfo?.seal_path]);
 
   const [watermarkSrc, setWatermarkSrc] = useState<string | null>(null);
   useEffect(() => {
-    const wmPath = template.layout_json?.watermark?.imagePath;
-    if (wmPath) {
-      if (wmPath.startsWith('data:') || wmPath.startsWith('http') || wmPath.startsWith('blob:') || wmPath.startsWith('C:') || wmPath.startsWith('D:')) {
-        setWatermarkSrc(getLocalImagePath(wmPath));
-      } else {
-        // Just in case it's a supabase path
-        const { data } = supabase.storage.from('company_assets').getPublicUrl(wmPath);
-        setWatermarkSrc(data.publicUrl);
+    let active = true;
+    const loadWm = async () => {
+      const wmPath = template.layout_json?.watermark?.imagePath;
+      if (wmPath) {
+        const url = await resolveImagePath(wmPath);
+        if (active) setWatermarkSrc(url);
       }
-    }
+    };
+    loadWm();
+    return () => {
+      active = false;
+    };
   }, [template.layout_json?.watermark?.imagePath]);
 
   const currency = estimate.currency || 'KRW';

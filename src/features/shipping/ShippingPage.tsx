@@ -394,7 +394,7 @@ export const ShippingPage: React.FC = () => {
   );
 
   return (
-    <div className="flex flex-col gap-6 animate-in fade-in h-full bg-bg-base w-full">
+    <div className="flex flex-col gap-5 animate-in fade-in h-full bg-bg-base w-full">
       <div className="flex flex-col gap-4 p-6 pb-0">
         <PageHeader
           icon={Truck}
@@ -402,14 +402,46 @@ export const ShippingPage: React.FC = () => {
           description="가공 완료된 부품을 고객사에 출하(배송) 처리하고 공식 거래명세서를 발행합니다."
           className="mb-0"
           actions={
-            <div className="flex flex-wrap items-center gap-3">
+            activeTab === 'pending' ? (
+              <Button 
+                variant="primary" 
+                size="sm"
+                onClick={handleCreateShipmentClick}
+                disabled={selectedPendingIds.size === 0}
+                className="h-9 text-xs font-semibold px-4 shadow-sm"
+              >
+                <Truck className="w-4 h-4 mr-1.5" />
+                선택 묶음 출하 ({selectedPendingIds.size}건)
+              </Button>
+            ) : undefined
+          }
+        />
+
+        <PageTabs
+          tabs={[
+            { id: 'pending', label: `출하 대기 (${filteredPending.length})` },
+            { id: 'shipped', label: `출하 완료 (${filteredShipments.length})` }
+          ]}
+          activeTab={activeTab}
+          onChange={handleTabChange}
+          rightContent={
+            <div className="text-xs text-text-secondary">
+              총 <span className="text-brand-400 font-bold">{activeTab === 'pending' ? filteredPending.length : filteredShipments.length}</span> 건
+            </div>
+          }
+        />
+
+        {/* 🛠️ 필터 및 전용 툴바 영역 */}
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-bg-surface p-3 rounded-xl border border-border-default shadow-sm">
+          {/* 좌측: 바코드 스캔 + 고객사 드롭다운 + 검색창 */}
+          <div className="flex flex-wrap items-center gap-2.5">
             {/* 바코드 스캔/입력 폼 */}
             <form onSubmit={handleBarcodeManualSubmit} className="relative flex items-center">
               <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-400" />
               <input 
                 ref={barcodeInputRef}
                 type="text"
-                className="pl-9 pr-14 h-9 text-xs font-mono bg-bg-surface border border-brand-500/40 rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 w-48 transition-all shadow-sm"
+                className="pl-9 pr-14 h-9 text-xs font-mono bg-bg-base border border-brand-500/40 rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 w-48 transition-all shadow-sm"
                 placeholder="바코드 스캔 (P...)"
                 value={barcodeInput}
                 onChange={(e) => setBarcodeInput(e.target.value)}
@@ -428,7 +460,7 @@ export const ShippingPage: React.FC = () => {
                 <select
                   value={selectedClientId}
                   onChange={(e) => setSelectedClientId(e.target.value)}
-                  className="w-full h-9 pl-3 pr-8 text-xs font-medium bg-bg-surface border border-border-default rounded-lg text-text-primary focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all cursor-pointer appearance-none shadow-sm"
+                  className="w-full h-9 pl-3 pr-8 text-xs font-medium bg-bg-base border border-border-default rounded-lg text-text-primary focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all cursor-pointer appearance-none shadow-sm"
                 >
                   {clientOptions.map(opt => (
                     <option key={opt.value} value={opt.value}>
@@ -441,89 +473,67 @@ export const ShippingPage: React.FC = () => {
             )}
 
             {/* 통합 검색창 */}
-            <div className="relative w-48">
+            <div className="relative w-52">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
               <Input 
-                className="pl-9 h-9 text-xs" 
+                className="pl-9 h-9 text-xs bg-bg-base" 
                 placeholder="품명, 품번, PO 검색..." 
                 value={searchTerm}
                 onChange={(e) => handleSearchChange(e.target.value)}
               />
             </div>
-
-            {/* 출하 대기 탭 전용 컨트롤러 (보기 모드 전환 & 액션 버튼) */}
-            {activeTab === 'pending' && (
-              <>
-                {/* 리스트 vs 고객사별 묶음 토글 */}
-                <div className="flex items-center bg-bg-surface border border-border-default rounded-lg p-0.5 shadow-sm">
-                  <button
-                    type="button"
-                    onClick={() => setViewMode('list')}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
-                      viewMode === 'list'
-                        ? 'bg-brand-500 text-white shadow-sm font-semibold'
-                        : 'text-text-secondary hover:text-text-primary'
-                    }`}
-                    title="전체 통합 리스트 보기"
-                  >
-                    <List className="w-3.5 h-3.5" />
-                    <span>리스트</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewMode('grouped')}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
-                      viewMode === 'grouped'
-                        ? 'bg-brand-500 text-white shadow-sm font-semibold'
-                        : 'text-text-secondary hover:text-text-primary'
-                    }`}
-                    title="고객사별로 묶어서 보기"
-                  >
-                    <Building2 className="w-3.5 h-3.5" />
-                    <span>고객사별</span>
-                  </button>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Button 
-                    variant="secondary" 
-                    size="sm"
-                    onClick={handleToggleSelectAll}
-                    disabled={filteredPending.length === 0}
-                    className="h-9 text-xs px-3"
-                  >
-                    {selectedPendingIds.size > 0 && selectedPendingIds.size === filteredPending.length ? (
-                      <CheckSquare className="w-4 h-4 mr-1.5 text-brand-400" />
-                    ) : (
-                      <Square className="w-4 h-4 mr-1.5 text-text-tertiary" />
-                    )}
-                    전체 선택
-                  </Button>
-                  <Button 
-                    variant="primary" 
-                    size="sm"
-                    onClick={handleCreateShipmentClick}
-                    disabled={selectedPendingIds.size === 0}
-                    className="h-9 text-xs font-semibold px-3 shadow-sm"
-                  >
-                    <Truck className="w-4 h-4 mr-1.5" />
-                    선택 묶음 출하 ({selectedPendingIds.size}건)
-                  </Button>
-                </div>
-              </>
-            )}
           </div>
-        }
-      />
 
-        <PageTabs
-          tabs={[
-            { id: 'pending', label: `출하 대기 (${filteredPending.length})` },
-            { id: 'shipped', label: `출하 완료 (${filteredShipments.length})` }
-          ]}
-          activeTab={activeTab}
-          onChange={handleTabChange}
-        />
+          {/* 우측: 보기 모드 전환 & 전체 선택 (대기 탭일 때) */}
+          {activeTab === 'pending' && (
+            <div className="flex items-center gap-2">
+              {/* 리스트 vs 고객사별 묶음 토글 */}
+              <div className="flex items-center bg-bg-base border border-border-default rounded-lg p-0.5 shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('list')}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
+                    viewMode === 'list'
+                      ? 'bg-brand-500 text-white shadow-sm font-semibold'
+                      : 'text-text-secondary hover:text-text-primary'
+                  }`}
+                  title="전체 통합 리스트 보기"
+                >
+                  <List className="w-3.5 h-3.5" />
+                  <span>리스트</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('grouped')}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
+                    viewMode === 'grouped'
+                      ? 'bg-brand-500 text-white shadow-sm font-semibold'
+                      : 'text-text-secondary hover:text-text-primary'
+                  }`}
+                  title="고객사별로 묶어서 보기"
+                >
+                  <Building2 className="w-3.5 h-3.5" />
+                  <span>고객사별</span>
+                </button>
+              </div>
+
+              <Button 
+                variant="secondary" 
+                size="sm"
+                onClick={handleToggleSelectAll}
+                disabled={filteredPending.length === 0}
+                className="h-9 text-xs px-3 bg-bg-base"
+              >
+                {selectedPendingIds.size > 0 && selectedPendingIds.size === filteredPending.length ? (
+                  <CheckSquare className="w-4 h-4 mr-1.5 text-brand-400" />
+                ) : (
+                  <Square className="w-4 h-4 mr-1.5 text-text-tertiary" />
+                )}
+                전체 선택
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 pb-6 custom-scrollbar">

@@ -160,9 +160,21 @@ export const ShopFloorPage = () => {
             <div className="flex flex-wrap gap-2 items-center">
               {scannedPart.history.map((log: any, i) => (
                 <React.Fragment key={log.id || i}>
-                  <div className={`px-3 py-2 rounded-lg border ${log.status === '완료' ? 'bg-success/10 border-success text-success' : log.status === '진행중' ? 'bg-brand-500/10 border-brand-500 text-brand-500 font-bold' : 'bg-bg-elevated border-border-default text-text-secondary'}`}>
-                    <div className="text-xs mb-1">[{log.status}] {log.is_outsource ? '(외주)' : '(사내)'}</div>
-                    <div>{log.process_name}</div>
+                  <div className={`px-3 py-2 rounded-lg border transition-all ${
+                    log.status === '완료' 
+                      ? 'bg-success/10 border-success text-success' 
+                      : log.status === '진행중' 
+                      ? (log.is_outsource ? 'bg-orange-500/20 border-orange-500 text-orange-400 font-bold' : 'bg-brand-500/10 border-brand-500 text-brand-500 font-bold') 
+                      : (log.is_outsource ? 'bg-orange-500/10 border-orange-500/30 text-orange-300' : 'bg-bg-elevated border-border-default text-text-secondary')
+                  }`}>
+                    <div className="text-xs mb-1 flex items-center gap-1">
+                      <span>[{log.status}]</span>
+                      <span className={log.is_outsource ? 'text-orange-400 font-semibold' : 'text-brand-400'}>
+                        {log.is_outsource ? '(외주)' : '(사내)'}
+                      </span>
+                    </div>
+                    <div className="font-bold">{log.process_name}</div>
+                    {log.description && <div className="text-xs text-text-secondary mt-0.5">{log.description}</div>}
                   </div>
                   {i < scannedPart.history.length - 1 && <ArrowRightLeft size={16} className="text-border-default" />}
                 </React.Fragment>
@@ -197,14 +209,23 @@ export const ShopFloorPage = () => {
                 <>
                   {!isAdhoc ? (
                     <div className="space-y-4">
-                      <div className="p-6 bg-brand-500/5 border border-brand-500/20 rounded-lg text-center">
+                      <div className={`p-6 rounded-lg text-center border transition-all ${
+                        scannedPart.currentProcess?.is_outsource
+                          ? 'bg-orange-500/10 border-orange-500/40'
+                          : 'bg-brand-500/5 border-brand-500/20'
+                      }`}>
                         <div className="text-text-secondary mb-2">현재 차례 공정</div>
-                        <div className="text-3xl font-bold text-brand-500">
+                        <div className={`text-3xl font-bold ${scannedPart.currentProcess?.is_outsource ? 'text-orange-400' : 'text-brand-500'}`}>
                           {scannedPart.currentProcess?.process_name || '대기 공정 없음'}
                         </div>
+                        {scannedPart.currentProcess?.description && (
+                          <div className={`text-base mt-1 ${scannedPart.currentProcess?.is_outsource ? 'text-orange-300/80' : 'text-text-secondary'}`}>
+                            {scannedPart.currentProcess.description}
+                          </div>
+                        )}
                         {scannedPart.currentProcess?.is_outsource && (
-                          <div className="mt-2 inline-block px-2 py-1 bg-warning/20 text-warning text-sm rounded">
-                            외주 공정입니다
+                          <div className="mt-2 inline-flex items-center gap-1 px-2.5 py-1 bg-warning/20 text-warning text-sm font-semibold rounded border border-warning/30">
+                            <Truck size={14} /> 외주 공정입니다
                           </div>
                         )}
                       </div>
@@ -310,6 +331,7 @@ export const ShopFloorPage = () => {
                         <div>
                           <Badge variant={log.status === '완료' ? 'success' : log.status === '불량' ? 'danger' : log.status === '진행중' ? 'primary' : 'warning'}>{log.status}</Badge>
                           <span className="ml-2 font-bold text-text-primary">{log.process_name}</span>
+                          {log.description && <span className="ml-2 text-sm font-normal text-text-secondary">({log.description})</span>}
                         </div>
                         <div className="text-sm text-text-secondary">{log.worker} | {log.start_time ? new Date(log.start_time).toLocaleTimeString('ko-KR', { hour: '2-digit', minute:'2-digit' }) : '-'}</div>
                       </li>
